@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fly, fade } from 'svelte/transition';
+  import { fade } from 'svelte/transition';
   import { untrack } from 'svelte';
   import type { Photo, ShootingSettings } from '$lib/stores/photos.svelte';
   import { formatExposure } from '$lib/formatters';
@@ -17,51 +17,67 @@
   let latestMode = $state(false);
   let isFullscreen = $state(false);
 
-  // Track by photo ID so array prepends don't silently change the viewed photo
-  // untrack() reads initial prop values without creating reactive dependencies
+  // Track viewed photo by ID (stable across array prepends)
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
-  // Derive the current index from the tracked ID (or 0 in latest mode)
   const index = $derived.by(() => {
     if (latestMode) return 0;
-    if (currentId === null) return 0;
     const i = photos.findIndex(p => p.id === currentId);
     return i === -1 ? 0 : i;
   });
 
   const photo = $derived(photos[index] ?? null);
 
-  // When photo identity changes (latest mode new shot, or navigate),
-  // capture the current best URL as crossfade source before switching.
-  // This runs synchronously before the new photo renders.
-  let lastPhotoId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
-  $effect.pre(() => {
-    const newId = photo?.id ?? null;
-    if (newId !== lastPhotoId) {
-      // Capture current best before photo switches
-      renderedUrl = untrack(() => currentBestUrl);
-      lastPhotoId = newId;
+  // ---------------------------------------------------------------------------
+  // Image display state machine
+  //
+  // shownUrl  — the image currently visible (bg layer, always rendered if set)
+  // fadingUrl — the image fading in on top (null when no transition in progress)
+  // shimmer   — true while waiting for a better image to load
+  //
+  // Transitions:
+  //   1. Photo changes (navigate / new shot in latest mode):
+  //      shownUrl stays as crossfade source; fadingUrl = null; shimmer = true
+  //      → when target image loads: fadingUrl = newUrl; shimmer = false
+  //      → onintroend: shownUrl = fadingUrl; fadingUrl = null
+  //
+  //   2. Same photo, display loads after thumbnail:
+  //      fadingUrl = displayUrl; shimmer = false
+  //      → onintroend: shownUrl = displayUrl; fadingUrl = null
+  // ---------------------------------------------------------------------------
+  let shownUrl  = $state<string | null>(
+    untrack(() => { const p = photos[initialIndex]; return p?.displayUrl ?? p?.thumbnailUrl ?? null; })
+  );
+  let fadingUrl = $state<string | null>(null);
+  let shimmer   = $state(false);
+
+  // Track the photo id we last processed so we can detect photo changes
+  let processedId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
+
+  $effect(() => {
+    if (!photo) return;
+    const id = photo.id;
+
+    if (id !== processedId) {
+      // Photo changed — start shimmer, clear fading, keep shownUrl as crossfade source
+      processedId = id;
+      fadingUrl = null;
+      shimmer = true;
+      // Request display-quality image if not already loading
+      onfetchdisplay?.(id);
+    }
+
+    // Determine the best available URL for this photo
+    const best = latestMode
+      ? photo.displayUrl ?? null          // latest mode: only HD, no thumbnail flash
+      : photo.displayUrl ?? photo.thumbnailUrl ?? null;
+
+    if (best && best !== shownUrl && best !== fadingUrl) {
+      // A better image is available — fade it in
+      fadingUrl = best;
+      shimmer = false;
     }
   });
-
-  // The best available URL for the current photo (display > thumbnail)
-  // In latest mode: only displayUrl counts (suppress thumbnail)
-  const currentBestUrl = $derived.by(() => {
-    if (!photo) return null;
-    if (latestMode) return photo.displayUrl ?? null;
-    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
-  });
-
-  // renderedUrl = the image currently shown as bg layer (crossfade source).
-  // Updated in two ways:
-  //   1. navigate() / new shot → set to the PREVIOUS photo's best URL (crossfade source)
-  //   2. onintroend → set to the newly faded-in URL (bg catches up)
-  let renderedUrl = $state<string | null>(
-    untrack(() => {
-      const p = photos[initialIndex];
-      return p?.displayUrl ?? (latestMode ? null : p?.thumbnailUrl) ?? null;
-    })
-  );
 
   const timeLabel = $derived(
     photo
@@ -156,17 +172,10 @@
   <!-- Main image area -->
   {#if photo}
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
-      <!-- Image wrap: renderedUrl holds the last good image (prev or current).
-           When a better image arrives, it fades in on top via {#key}. -->
       <div class="image-wrap">
-        <!-- Layer 1: previous/current rendered image (always visible until replaced) -->
-        {#if renderedUrl}
-          <img
-            src={renderedUrl}
-            alt={photo.filename}
-            class="main-img main-img--bg"
-            onerror={() => { renderedUrl = null; }}
-          />
+        <!-- Layer 1 (bg): last confirmed good image — crossfade source -->
+        {#if shownUrl}
+          <img src={shownUrl} alt={photo.filename} class="main-img" />
         {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
@@ -174,22 +183,23 @@
           </div>
         {/if}
 
-        <!-- Layer 2: currentBestUrl fades in when it differs from what's rendered -->
-        {#if currentBestUrl && currentBestUrl !== renderedUrl}
-          {@const capturedUrl = currentBestUrl}
-          {#key capturedUrl}
+        <!-- Layer 2 (top): new image fades in; on complete → becomes shownUrl -->
+        {#if fadingUrl}
+          {@const url = fadingUrl}
+          {#key url}
             <img
-              src={capturedUrl}
+              src={url}
               alt={photo.filename}
               class="main-img main-img--top"
               in:fade={{ duration: 300 }}
-              onintroend={() => { renderedUrl = capturedUrl; }}
-              onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
+              onintroend={() => { shownUrl = url; fadingUrl = null; }}
+              onerror={() => { fadingUrl = null; }}
             />
           {/key}
         {/if}
-        <!-- Shimmer border: inside image-wrap, hugs the image edge while HD loads -->
-        {#if !photo.displayUrl}
+
+        <!-- Shimmer border: visible while waiting for next image -->
+        {#if shimmer || (fadingUrl !== null)}
           <div class="shimmer-border"></div>
         {/if}
       </div>
