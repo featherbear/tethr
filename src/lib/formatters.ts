@@ -30,7 +30,7 @@ export function formatExposure(raw: string | null): string | null {
     const whole = parseInt(mixedMatch[1], 10);
     const frac = mixedMatch[2];
     if (whole === 0) return `${sign}${frac}`;        // "+1/3"
-    return `${sign}${whole}·${frac}`;               // "+1·1/3"
+    return `${sign}${whole}\u2009${frac}`;           // "+1 1/3" (thin space)
   }
 
   // Bare fraction (shouldn't happen but just in case)
