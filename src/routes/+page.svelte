@@ -11,6 +11,39 @@
   let eventSource: EventSource | null = null;
   let showSettings = $state(false);
 
+  // Serial thumbnail fetch queue — one request at a time to avoid camera 503s
+  type ThumbJob = { id: string; dirname: string; filename: string; priority: number };
+  const thumbQueue: ThumbJob[] = [];
+  let thumbRunning = false;
+
+  async function enqueueThumbnail(id: string, dirname: string, filename: string) {
+    // Priority: JPG=0 (higher), RAW=1 (lower)
+    const priority = /\.(cr3|cr2)$/i.test(filename) ? 1 : 0;
+    // Replace any existing lower-priority job for the same card
+    const existing = thumbQueue.findIndex(j => j.id === id);
+    if (existing !== -1) {
+      if (thumbQueue[existing].priority <= priority) return; // already have equal/better
+      thumbQueue.splice(existing, 1);
+    }
+    thumbQueue.push({ id, dirname, filename, priority });
+    // Sort: JPG (0) before RAW (1)
+    thumbQueue.sort((a, b) => a.priority - b.priority);
+    processThumbQueue();
+  }
+
+  async function processThumbQueue() {
+    if (thumbRunning) return;
+    thumbRunning = true;
+    while (thumbQueue.length > 0) {
+      const job = thumbQueue.shift()!;
+      // Skip if card already has a JPG thumbnail and this is a RAW job
+      const card = photosStore.photos.find(p => p.id === job.id);
+      if (job.priority === 1 && card?.thumbnailUrl) continue;
+      await fetchThumbnail(job.id, job.dirname, job.filename);
+    }
+    thumbRunning = false;
+  }
+
   // ---------------------------------------------------------------------------
   // Initial state load
   // ---------------------------------------------------------------------------
@@ -51,10 +84,7 @@
       const filename = parts.pop()!;
       const dirname = parts.join('/');
       const id = photosStore.addOrMerge(dirname, filename);
-      const isRaw = /\.(cr3|cr2)$/i.test(filename);
-      if (!isRaw || !photosStore.photos.find(p => p.id === id)?.thumbnailUrl) {
-        fetchThumbnail(id, dirname, filename);
-      }
+      enqueueThumbnail(id, dirname, filename);
     });
 
     eventSource.addEventListener('info', (e) => {
