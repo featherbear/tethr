@@ -8,9 +8,10 @@
 
   const { onconnect, ondisconnect }: Props = $props();
 
-  let ip = $state(cameraStore.ip);
-  let port = $state(cameraStore.port);
-  let saving = $state(false);
+  let ip       = $state(cameraStore.ip);
+  let port     = $state(cameraStore.port);
+  let useHttps = $state(cameraStore.useHttps);
+  let saving   = $state(false);
 
   const isConnected = $derived(
     cameraStore.status === 'live' || cameraStore.status === 'connecting'
@@ -22,10 +23,11 @@
       await fetch('/api/camera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip, port }),
+        body: JSON.stringify({ ip, port, https: useHttps }),
       });
       cameraStore.setIp(ip);
       cameraStore.setPort(port);
+      cameraStore.setHttps(useHttps);
     } finally {
       saving = false;
     }
@@ -39,6 +41,13 @@
 
 <div class="config">
   <div class="fields">
+    <div class="field field--protocol">
+      <label for="camera-https">Protocol</label>
+      <select id="camera-https" bind:value={useHttps} disabled={isConnected}>
+        <option value={false}>HTTP</option>
+        <option value={true}>HTTPS</option>
+      </select>
+    </div>
     <div class="field">
       <label for="camera-ip">Camera IP</label>
       <input
@@ -100,8 +109,33 @@
     flex: 1;
   }
 
+  .field--protocol {
+    max-width: 110px;
+  }
+
   .field--port {
     max-width: 100px;
+  }
+
+  select {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    padding: 0.4rem 0.6rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  select:focus {
+    border-color: #6366f1;
+  }
+
+  select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   label {
