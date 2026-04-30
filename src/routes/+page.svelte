@@ -159,11 +159,23 @@
   // ---------------------------------------------------------------------------
   // Photo loading
   // ---------------------------------------------------------------------------
-  async function fetchThumbnail(id: string, dirname: string, filename: string) {
+  const THUMB_MAX_RETRIES = 4;
+  const THUMB_RETRY_DELAY_MS = 1_500;
+
+  async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
     const camPath = `${dirname}/${filename}`.replace(/^\//, '');
     try {
       const res = await fetch(`/api/thumbnail/${camPath}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Retry on transient camera errors (503, 502) with backoff
+        if (attempt < THUMB_MAX_RETRIES && (res.status === 503 || res.status === 502)) {
+          const delay = THUMB_RETRY_DELAY_MS * (attempt + 1);
+          await new Promise(r => setTimeout(r, delay));
+          // Re-enqueue at same priority so it goes through the serial queue
+          enqueueJob({ type: 'thumb', id, dirname, filename, priority: P.Thumbnail });
+        }
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
@@ -172,9 +184,12 @@
     } catch { /* silent */ }
   }
 
+  const DISPLAY_MAX_RETRIES = 3;
+  const DISPLAY_RETRY_DELAY_MS = 2_000;
+
   // Fetch display-quality image (~340KB JPG) with progress tracking.
   // Only fetches JPG variants — skip if only RAW available.
-  async function fetchDisplay(id: string) {
+  async function fetchDisplay(id: string, attempt = 0) {
     const photo = photosStore.photos.find(p => p.id === id);
     if (!photo || photo.displayUrl) return; // already fetched
 
@@ -186,7 +201,16 @@
     try {
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
-      if (!res.ok || !res.body) { photosStore.setDisplayProgress(id, 0); return; }
+      if (!res.ok || !res.body) {
+        photosStore.setDisplayProgress(id, 0);
+        // Retry on transient errors
+        if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
+          const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
+          await new Promise(r => setTimeout(r, delay));
+          enqueueJob({ type: 'display', id, priority: P.DisplayNow });
+        }
+        return;
+      }
 
       const contentLength = Number(res.headers.get('Content-Length') ?? 0);
       const reader = res.body.getReader();

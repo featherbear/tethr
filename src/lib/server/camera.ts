@@ -69,7 +69,7 @@ if (!g.__camera_queue) g.__camera_queue = Promise.resolve();
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   const prev = g.__camera_queue as Promise<unknown>;
-  const next = prev.then(fn, fn); // always continue even if previous failed
+  const next = prev.then(() => fn(), () => fn()); // always continue even if previous failed
   g.__camera_queue = next.then(() => {}, () => {}); // detach to avoid chain growth
   return next as Promise<T>;
 }
