@@ -249,7 +249,7 @@
     // Enqueue display fetches for all thumbnail-only photos (newest first, lowest priority)
     const pending = photosStore.photos.filter(p =>
       p.thumbnailUrl && !p.displayUrl && p.displayProgress === null &&
-      p.variants.some(v => /\.jpe?g$/i.test(v))
+      p.variants.some(v => /\.(jpe?g|cr3|cr2)$/i.test(v))
     );
     for (const photo of pending) {
       enqueueDisplay(photo.id, P.DisplayIdle);
