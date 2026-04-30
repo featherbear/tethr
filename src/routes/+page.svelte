@@ -15,37 +15,61 @@
   let lightboxIndex = $state<number | null>(null);
   let liveSettings = $state<ShootingSettings | null>(null);
 
-  // Serial thumbnail fetch queue — one request at a time to avoid camera 503s
-  type ThumbJob = { id: string; dirname: string; filename: string; priority: number };
-  const thumbQueue: ThumbJob[] = [];
-  let thumbRunning = false;
+  // ---------------------------------------------------------------------------
+  // Single global serial camera fetch queue — CCAPI is single-threaded,
+  // all camera requests (thumbnail + display) must be serialised.
+  // Priority: 0=thumbnail (urgent), 1=display on-demand, 2=display idle prefetch
+  // ---------------------------------------------------------------------------
+  type Job =
+    | { type: 'thumb';   id: string; dirname: string; filename: string; priority: number }
+    | { type: 'display'; id: string; priority: number };
 
-  async function enqueueThumbnail(id: string, dirname: string, filename: string) {
-    // Priority: JPG=0 (higher), RAW=1 (lower)
-    const priority = /\.(cr3|cr2)$/i.test(filename) ? 1 : 0;
-    // Replace any existing lower-priority job for the same card
-    const existing = thumbQueue.findIndex(j => j.id === id);
-    if (existing !== -1) {
-      if (thumbQueue[existing].priority <= priority) return; // already have equal/better
-      thumbQueue.splice(existing, 1);
+  const fetchQueue: Job[] = [];
+  let fetchRunning = false;
+
+  function enqueueJob(job: Job) {
+    // For thumbnail jobs: replace existing lower-priority job for same id
+    if (job.type === 'thumb') {
+      const existing = fetchQueue.findIndex(j => j.type === 'thumb' && j.id === job.id);
+      if (existing !== -1) {
+        if ((fetchQueue[existing] as typeof job).priority <= job.priority) return;
+        fetchQueue.splice(existing, 1);
+      }
     }
-    thumbQueue.push({ id, dirname, filename, priority });
-    // Sort: JPG (0) before RAW (1)
-    thumbQueue.sort((a, b) => a.priority - b.priority);
-    processThumbQueue();
+    // For display jobs: skip if already queued or loaded
+    if (job.type === 'display') {
+      const photo = photosStore.photos.find(p => p.id === job.id);
+      if (!photo || photo.displayUrl || photo.displayProgress !== null) return;
+      if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
+    }
+    fetchQueue.push(job);
+    fetchQueue.sort((a, b) => a.priority - b.priority);
+    processFetchQueue();
   }
 
-  async function processThumbQueue() {
-    if (thumbRunning) return;
-    thumbRunning = true;
-    while (thumbQueue.length > 0) {
-      const job = thumbQueue.shift()!;
-      // Skip if card already has a JPG thumbnail and this is a RAW job
-      const card = photosStore.photos.find(p => p.id === job.id);
-      if (job.priority === 1 && card?.thumbnailUrl) continue;
-      await fetchThumbnail(job.id, job.dirname, job.filename);
+  async function processFetchQueue() {
+    if (fetchRunning) return;
+    fetchRunning = true;
+    while (fetchQueue.length > 0) {
+      const job = fetchQueue.shift()!;
+      if (job.type === 'thumb') {
+        const card = photosStore.photos.find(p => p.id === job.id);
+        if (job.priority === 1 && card?.thumbnailUrl) continue; // RAW skipped if JPG thumb exists
+        await fetchThumbnail(job.id, job.dirname, job.filename);
+      } else {
+        await fetchDisplay(job.id);
+      }
     }
-    thumbRunning = false;
+    fetchRunning = false;
+  }
+
+  function enqueueThumbnail(id: string, dirname: string, filename: string) {
+    const priority = /\.(cr3|cr2)$/i.test(filename) ? 1 : 0;
+    enqueueJob({ type: 'thumb', id, dirname, filename, priority });
+  }
+
+  function enqueueDisplay(id: string, priority: 1 | 2) {
+    enqueueJob({ type: 'display', id, priority });
   }
 
   // ---------------------------------------------------------------------------
@@ -93,8 +117,14 @@
       const dirname = parts.join('/');
       const id = photosStore.addOrMerge(dirname, filename, settings);
       enqueueThumbnail(id, dirname, filename);
-      // Cancel any idle prefetch — camera is active
+      // Cancel idle prefetch timer and flush pending display jobs — camera is active
       if (idlePrefetchTimer) { clearTimeout(idlePrefetchTimer); idlePrefetchTimer = null; }
+      // Remove queued idle display jobs (priority 2) — leave on-demand (1) and thumbnails (0)
+      for (let i = fetchQueue.length - 1; i >= 0; i--) {
+        if (fetchQueue[i].type === 'display' && fetchQueue[i].priority === 2) {
+          fetchQueue.splice(i, 1);
+        }
+      }
     });
 
     eventSource.addEventListener('info', (e) => {
@@ -183,18 +213,14 @@
     idlePrefetchTimer = setTimeout(runIdlePrefetch, IDLE_DELAY_MS);
   }
 
-  async function runIdlePrefetch() {
-    // Find photos that have a thumbnail but no display image yet, newest first
+  function runIdlePrefetch() {
+    // Enqueue display fetches for all thumbnail-only photos (newest first, lowest priority)
     const pending = photosStore.photos.filter(p =>
       p.thumbnailUrl && !p.displayUrl && p.displayProgress === null &&
       p.variants.some(v => /\.jpe?g$/i.test(v))
     );
     for (const photo of pending) {
-      // Re-check in case a shot arrived while prefetching
-      if (photosStore.photos.some(p => p.id !== photo.id && p.displayProgress !== null)) break;
-      await fetchDisplay(photo.id);
-      // Small gap between fetches to avoid overwhelming the camera
-      await new Promise(r => setTimeout(r, 500));
+      enqueueDisplay(photo.id, 2); // priority 2 = idle (lowest)
     }
   }
 
@@ -224,9 +250,9 @@
   <main class="content">
     <PhotoGrid photos={photosStore.photos} onopen={(i) => {
       lightboxIndex = i;
-      // Start fetching display-quality image when lightbox opens
+      // On-demand: priority 1 (ahead of idle prefetch)
       const photo = photosStore.photos[i];
-      if (photo) fetchDisplay(photo.id);
+      if (photo) enqueueDisplay(photo.id, 1);
     }} />
   </main>
 </div>
@@ -241,7 +267,7 @@
     initialIndex={lightboxIndex}
     liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
-    onfetchdisplay={(id) => fetchDisplay(id)}
+    onfetchdisplay={(id) => enqueueDisplay(id, 1)}
   />
 {/if}
 
