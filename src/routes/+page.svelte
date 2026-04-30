@@ -20,10 +20,11 @@
   // all camera requests (thumbnail + display) must be serialised.
   // ---------------------------------------------------------------------------
   const P = {
-    Thumbnail:    0,  // urgent — JPG thumbnail for new shot
-    ThumbnailRaw: 1,  // urgent — RAW thumbnail (fallback if no JPG)
-    DisplayNow:   2,  // on-demand — lightbox open / navigate
-    DisplayIdle:  3,  // background — idle prefetch
+    Thumbnail:      0,  // urgent — JPG thumbnail for new shot
+    DisplayUrgent:  1,  // urgent — display fetch when lightbox is open (latest shot)
+    ThumbnailRaw:   2,  // urgent — RAW thumbnail (fallback if no JPG)
+    DisplayNow:     3,  // on-demand — lightbox open / navigate (non-latest)
+    DisplayIdle:    4,  // background — idle prefetch
   } as const;
   type PValue = typeof P[keyof typeof P];
 
@@ -85,7 +86,7 @@
     enqueueJob({ type: 'thumb', id, dirname, filename, priority });
   }
 
-  function enqueueDisplay(id: string, priority: typeof P.DisplayNow | typeof P.DisplayIdle) {
+  function enqueueDisplay(id: string, priority: typeof P.DisplayUrgent | typeof P.DisplayNow | typeof P.DisplayIdle) {
     enqueueJob({ type: 'display', id, priority });
   }
 
@@ -139,10 +140,11 @@
       for (let i = fetchQueue.length - 1; i >= 0; i--) {
         if (fetchQueue[i].type === 'display') fetchQueue.splice(i, 1);
       }
-      // If lightbox is open, jump to new photo and fetch display immediately
+      // If lightbox is open, jump to new photo and fetch display at urgent priority
+      // (P.DisplayUrgent=1 runs after latest thumbnail but before older thumbnails)
       if (lightboxIndex !== null) {
         lightboxIndex = 0;
-        enqueueDisplay(id, P.DisplayNow);
+        enqueueDisplay(id, P.DisplayUrgent);
       }
     });
 
@@ -191,10 +193,10 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
-      // If lightbox is open and showing this photo, fetch display immediately
+      // If lightbox is open and showing this photo, fetch display at urgent priority
       const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
       if (currentPhoto?.id === id) {
-        enqueueDisplay(id, P.DisplayNow);
+        enqueueDisplay(id, P.DisplayUrgent);
       } else {
         // Otherwise schedule idle prefetch
         scheduleIdlePrefetch();
@@ -299,9 +301,9 @@
   <main class="content">
     <PhotoGrid photos={photosStore.photos} onopen={(i) => {
       lightboxIndex = i;
-      // On-demand: priority 1 (ahead of idle prefetch)
       const photo = photosStore.photos[i];
-      if (photo) enqueueDisplay(photo.id, P.DisplayNow);
+      // Urgent if newest photo (index 0), otherwise on-demand
+      if (photo) enqueueDisplay(photo.id, i === 0 ? P.DisplayUrgent : P.DisplayNow);
     }} />
   </main>
 </div>
@@ -316,7 +318,11 @@
     initialIndex={lightboxIndex}
     liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
-    onfetchdisplay={(id) => enqueueDisplay(id, P.DisplayNow)}
+    onfetchdisplay={(id) => {
+      // Urgent if showing latest photo (index 0), on-demand otherwise
+      const i = photosStore.photos.findIndex(p => p.id === id);
+      enqueueDisplay(id, i === 0 ? P.DisplayUrgent : P.DisplayNow);
+    }}
   />
 {/if}
 
