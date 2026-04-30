@@ -49,10 +49,11 @@
     if (job.type === 'display') {
       const photo = photosStore.photos.find(p => p.id === job.id);
       if (!photo || photo.displayUrl) return;
-      // Skip if a fetch is already running for this photo (in-flight download will complete)
-      if (photo.displayProgress !== null) return;
       // Skip if already queued
       if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
+      // Skip if in-flight — abort resets displayProgress to null via catch block,
+      // so after abortCurrentDisplayFetch() this check passes correctly
+      if (photo.displayProgress !== null) return;
     }
     fetchQueue.push({ ...job, seq } as Job);
     // Sort: lowest priority number first; within same priority, newest (highest seq) first
@@ -130,17 +131,16 @@
       const dirname = parts.join('/');
       const id = photosStore.addOrMerge(dirname, filename, settings);
       enqueueThumbnail(id, dirname, filename);
-      // Cancel idle prefetch timer and flush pending display jobs — camera is active
+      // Cancel idle prefetch timer and flush ALL pending display jobs — camera is active
       if (idlePrefetchTimer) { clearTimeout(idlePrefetchTimer); idlePrefetchTimer = null; }
-      // Remove queued idle display jobs — leave on-demand display and thumbnails
       for (let i = fetchQueue.length - 1; i >= 0; i--) {
-        if (fetchQueue[i].type === 'display' && fetchQueue[i].priority === P.DisplayIdle) {
-          fetchQueue.splice(i, 1);
-        }
+        if (fetchQueue[i].type === 'display') fetchQueue.splice(i, 1);
       }
-      // If lightbox is in latest mode, jump to new photo and fetch display immediately
+      // Abort any in-flight display fetch — new shot takes priority
+      abortCurrentDisplayFetch();
+      // If lightbox is open, jump to new photo and fetch display immediately
       if (lightboxIndex !== null) {
-        lightboxIndex = 0; // latest mode always shows index 0 (newest)
+        lightboxIndex = 0;
         enqueueDisplay(id, P.DisplayNow);
       }
     });
@@ -204,8 +204,26 @@
   const DISPLAY_MAX_RETRIES = 3;
   const DISPLAY_RETRY_DELAY_MS = 2_000;
 
+  // AbortController for the currently in-flight display fetch
+  // Allows cancellation when a higher-priority shot arrives
+  let displayAbortController: AbortController | null = null;
+
+  function abortCurrentDisplayFetch() {
+    if (displayAbortController) {
+      displayAbortController.abort();
+      displayAbortController = null;
+      // Synchronously reset all in-progress display fetches so enqueueJob
+      // doesn't skip the new shot's display job (catch runs async, too late)
+      for (const p of photosStore.photos) {
+        if (p.displayProgress !== null && !p.displayUrl) {
+          photosStore.setDisplayProgress(p.id, null);
+        }
+      }
+    }
+  }
+
   // Fetch display-quality image (~340KB JPG) with progress tracking.
-  // Only fetches JPG variants — skip if only RAW available.
+  // Prefer JPG variant, fall back to CR3/CR2.
   async function fetchDisplay(id: string, attempt = 0) {
     const photo = photosStore.photos.find(p => p.id === id);
     if (!photo || photo.displayUrl) return; // already fetched
@@ -216,12 +234,14 @@
     if (!displayVariant) return;
 
     const camPath = `${photo.dirname}/${displayVariant}`.replace(/^\//, '');
+    const abortCtrl = new AbortController();
+    displayAbortController = abortCtrl;
+
     try {
       photosStore.setDisplayProgress(id, 0);
-      const res = await fetch(`/api/fullres/${camPath}`);
+      const res = await fetch(`/api/fullres/${camPath}`, { signal: abortCtrl.signal });
       if (!res.ok || !res.body) {
-        photosStore.setDisplayProgress(id, null); // reset so future fetches aren't blocked
-        // Retry on transient errors
+        photosStore.setDisplayProgress(id, null);
         if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
           const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
           await new Promise(r => setTimeout(r, delay));
@@ -248,7 +268,13 @@
       const blob = new Blob(chunks, { type: 'image/jpeg' });
       const url = URL.createObjectURL(blob);
       photosStore.setDisplay(id, url);
-    } catch { photosStore.setDisplayProgress(id, null); }
+    } catch (e) {
+      photosStore.setDisplayProgress(id, null);
+      // If aborted by a new shot, re-enqueue for that photo (handled by shot handler)
+      // Don't retry aborted fetches — the new shot's fetch is already queued
+    } finally {
+      if (displayAbortController === abortCtrl) displayAbortController = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
