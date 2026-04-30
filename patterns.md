@@ -85,6 +85,12 @@
 - **Fix:** Serve initial state via a dedicated REST endpoint (`/api/state`) on page load. `subscribe()` should only send status (needed for immediate render), not settings. SSE events become pure delta updates.
 - **Prevention:** Keep SSE as a delta-only channel. Never use `subscribe()` to replay full state — use REST for snapshots, SSE for changes.
 
+### `const enum` not supported in Svelte `<script>` blocks
+- **Symptom:** `svelte-check` error: "TypeScript language features like enums are not natively supported"
+- **Root cause:** Svelte's compiler processes `<script>` blocks before TypeScript, so `const enum` (which requires type-level erasure) is not supported without extra preprocessor config.
+- **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
+- **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
+
 ### Tauri svelte-ts scaffold defaults to adapter-static + SPA mode
 - **Symptom:** Server routes (`+server.ts`) don't work; SSR is disabled
 - **Root cause:** `pnpm create tauri-app` uses `adapter-static` with `ssr = false` in `+layout.ts` by default (Tauri docs recommend SPA mode for static builds)
