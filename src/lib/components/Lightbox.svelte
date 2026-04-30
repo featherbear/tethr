@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
+  import { untrack } from 'svelte';
   import type { Photo } from '$lib/stores/photos.svelte';
 
   interface Props {
@@ -14,7 +15,8 @@
   let isFullscreen = $state(false);
 
   // Track by photo ID so array prepends don't silently change the viewed photo
-  let currentId = $state(photos[initialIndex]?.id ?? null);
+  // untrack() reads initial prop values without creating reactive dependencies
+  let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
   // Derive the current index from the tracked ID (or 0 in latest mode)
   const index = $derived.by(() => {
