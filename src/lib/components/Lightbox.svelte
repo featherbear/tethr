@@ -21,38 +21,6 @@
   // untrack() reads initial prop values without creating reactive dependencies
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
-  // The best available URL for the current photo (display > thumbnail)
-  // Updated reactively — drives the top fade-in layer
-  const currentBestUrl = $derived.by(() => {
-    if (!photo) return null;
-    if (latestMode) return photo.displayUrl ?? null; // no thumbnail in latest mode
-    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
-  });
-
-  // Track the last rendered URL — stays as crossfade source while new image loads
-  // Only updated via onintroend after a fade completes
-  let renderedUrl = $state<string | null>(
-    untrack(() => {
-      const p = photos[initialIndex];
-      return p?.displayUrl ?? (latestMode ? null : p?.thumbnailUrl) ?? null;
-    })
-  );
-
-  // Track which photo id renderedUrl belongs to
-  // When photo changes identity, clear renderedUrl so the old photo
-  // doesn't show through as the crossfade bg for the new photo
-  let renderedPhotoId = $state<string | null>(
-    untrack(() => photos[initialIndex]?.id ?? null)
-  );
-
-  $effect(() => {
-    const id = photo?.id ?? null;
-    if (id !== renderedPhotoId) {
-      renderedPhotoId = id;
-      renderedUrl = null; // clear bg — new photo, no crossfade source
-    }
-  });
-
   // Derive the current index from the tracked ID (or 0 in latest mode)
   const index = $derived.by(() => {
     if (latestMode) return 0;
@@ -62,6 +30,38 @@
   });
 
   const photo = $derived(photos[index] ?? null);
+
+  // When photo identity changes (latest mode new shot, or navigate),
+  // capture the current best URL as crossfade source before switching.
+  // This runs synchronously before the new photo renders.
+  let lastPhotoId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
+  $effect.pre(() => {
+    const newId = photo?.id ?? null;
+    if (newId !== lastPhotoId) {
+      // Capture current best before photo switches
+      renderedUrl = untrack(() => currentBestUrl);
+      lastPhotoId = newId;
+    }
+  });
+
+  // The best available URL for the current photo (display > thumbnail)
+  // In latest mode: only displayUrl counts (suppress thumbnail)
+  const currentBestUrl = $derived.by(() => {
+    if (!photo) return null;
+    if (latestMode) return photo.displayUrl ?? null;
+    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
+  });
+
+  // renderedUrl = the image currently shown as bg layer (crossfade source).
+  // Updated in two ways:
+  //   1. navigate() / new shot → set to the PREVIOUS photo's best URL (crossfade source)
+  //   2. onintroend → set to the newly faded-in URL (bg catches up)
+  let renderedUrl = $state<string | null>(
+    untrack(() => {
+      const p = photos[initialIndex];
+      return p?.displayUrl ?? (latestMode ? null : p?.thumbnailUrl) ?? null;
+    })
+  );
 
   const timeLabel = $derived(
     photo
@@ -101,9 +101,7 @@
   function navigate(newIndex: number) {
     const newPhoto = photos[newIndex];
     if (!newPhoto) return;
-    // Do NOT update renderedUrl here — it must stay as the current photo's
-    // image so it acts as the crossfade source. renderedUrl is only updated
-    // via onintroend after the new image has fully faded in.
+    // $effect.pre captures renderedUrl = currentBestUrl before photo changes
     currentId = newPhoto.id;
     onfetchdisplay?.(newPhoto.id);
   }
