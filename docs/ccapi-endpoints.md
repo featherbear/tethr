@@ -1,126 +1,167 @@
 # CCAPI Endpoint Reference
 
-> Read this when implementing or debugging SvelteKit API routes that talk to the camera.
+> Verified against Canon EOS R6 Mark II over HTTPS (port 443, self-signed cert).
 > All calls are made server-side only (SvelteKit `+server.ts` routes).
-> Base URL: `http://{CAMERA_IP}:8080`
+> Base URL: `https://{CAMERA_IP}` (default port 443)
+
+---
+
+## API Version Map
+
+The R6 Mark II exposes three API versions. Tethr uses:
+
+| Feature | Endpoint version |
+|---|---|
+| Contents listing & file access | `ver120` |
+| Event polling (new shot) | `ver110` |
+| Device info, battery, lens | `ver100` |
+
+Discover all supported endpoints at `GET /ccapi`.
 
 ---
 
 ## Authentication
 
-CCAPI on the R6 Mark II supports optional user authentication. For local WiFi use, authentication is typically disabled. If enabled, use HTTP Basic Auth on every request.
+CCAPI on the R6 Mark II supports optional user authentication.
+For local WiFi use, authentication is typically disabled.
+If enabled, use HTTP Basic Auth on every request.
+
+The camera uses a **self-signed TLS certificate** — client must skip cert verification
+(`rejectUnauthorized: false` in Tethr's `cameraFetch()`).
 
 ---
 
 ## Endpoints
 
-### List photos on card
+### CCAPI capabilities
 
 ```
-GET /ccapi/ver100/contents/storage1/card1
+GET /ccapi
+```
+
+Returns a JSON object with all supported API versions and their endpoints,
+each annotated with supported HTTP methods. Use this to verify the camera
+is reachable and CCAPI is enabled.
+
+---
+
+### List storage
+
+```
+GET /ccapi/ver120/contents
+GET /ccapi/ver120/contents/card1
+```
+
+**Response:**
+```json
+{
+  "path": ["/ccapi/ver120/contents/card1/100EOSR6"]
+}
+```
+
+---
+
+### List folder (shooting session)
+
+```
+GET /ccapi/ver120/contents/card1/100EOSR6
 ```
 
 **Response:**
 ```json
 {
   "path": [
-    "/ccapi/ver100/contents/storage1/card1/100CANON",
-    "/ccapi/ver100/contents/storage1/card1/101CANON"
+    "/ccapi/ver120/contents/card1/100EOSR6/4E5A7113.CR3",
+    "/ccapi/ver120/contents/card1/100EOSR6/4E5A7114.CR3"
   ]
 }
 ```
 
-Each path is a directory (shooting session folder). Drill into a folder:
-
-```
-GET /ccapi/ver100/contents/storage1/card1/100CANON
-```
-
-```json
-{
-  "path": [
-    "/ccapi/ver100/contents/storage1/card1/100CANON/IMG_0001.JPG",
-    "/ccapi/ver100/contents/storage1/card1/100CANON/IMG_0002.JPG"
-  ]
-}
-```
+Note: Files are CR3 (Canon RAW), not JPG.
 
 ---
 
 ### Fetch thumbnail
 
 ```
-GET /ccapi/ver100/contents/storage1/card1/100CANON/IMG_0001.JPG?kind=thumbnail
+GET /ccapi/ver120/contents/card1/100EOSR6/4E5A7113.CR3?kind=thumbnail
 ```
 
-**Response:** JPEG bytes (`Content-Type: image/jpeg`)
+**Response:** JPEG bytes (`Content-Type: image/jpeg`, ~13 KB)
 
-Small, fast. Use this for the initial photo card display.
+Small, fast. Use for immediate photo card display.
 
 ---
 
 ### Fetch full-resolution original
 
 ```
-GET /ccapi/ver100/contents/storage1/card1/100CANON/IMG_0001.JPG?kind=original
+GET /ccapi/ver120/contents/card1/100EOSR6/4E5A7113.CR3?kind=original
 ```
 
-**Response:** JPEG (or RAW) bytes
+**Response:** CR3 bytes (Canon RAW format, large)
 
-Large. Fetch lazily, newest photo first.
+⚠️ Note: `kind=small` returns HTTP 400 — only `thumbnail` and `original` are supported.
 
 ---
 
 ### Long-poll for new shot events
 
 ```
-GET /ccapi/ver100/event/polling
+GET /ccapi/ver110/event/polling
 ```
 
-**Behaviour:** This request **blocks** on the camera until an event occurs (new shot, setting change, etc.). The camera holds the connection open — do not set a short timeout.
+**Behaviour:** Blocks until an event occurs (new shot, settings change, etc.).
+Do not set a short timeout — use at least 60s.
 
 **Response on new shot:**
 ```json
 {
   "kind": "shotnotification",
   "value": {
-    "storagegen": "storage1",
-    "dirname": "/ccapi/ver100/contents/storage1/card1/100CANON",
-    "filename": "IMG_0042.JPG"
+    "path": "/ccapi/ver120/contents/card1/100EOSR6/4E5A7114.CR3"
   }
 }
 ```
 
-**Response on other events** (settings changes etc.):
-```json
-{
-  "kind": "camerasettings",
-  "value": { ... }
-}
-```
+⚠️ The `value` contains a single `path` field (not separate `dirname`/`filename`).
+Tethr's SSE route normalises this: splits on `/`, pops the filename, sends `{ dirname, filename }` to the frontend.
 
-After receiving any response, immediately issue the next `GET /event/polling` to continue receiving events. The SvelteKit `/api/events` SSE route runs this loop server-side.
+After receiving a response, immediately re-issue the request to continue receiving events.
 
 **Error handling:**
-- On network error or non-200 status: wait with exponential back-off (1s, 2s, 4s, max 30s) then retry
-- Log errors but do not crash the loop
+- On network error or non-200: exponential back-off (1s → 2s → 4s … max 30s), then retry
+- The SSE route handles this transparently — the frontend sees `status: reconnecting`
 
 ---
 
-### Camera status / settings (optional, for future use)
+### Storage status
 
 ```
-GET /ccapi/ver100/devicestatus/currentsetting
+GET /ccapi/ver110/devicestatus/storage
 ```
 
-Returns current exposure settings (aperture, shutter speed, ISO, etc.). Not used in v1 but useful for the status bar.
+**Response:**
+```json
+{
+  "storagelist": [{
+    "name": "card1",
+    "path": "/ccapi/ver120/contents/card1",
+    "accesscapability": "readwrite",
+    "maxsize": 255802212352,
+    "spacesize": 224084885504,
+    "contentsnumber": 1162
+  }]
+}
+```
 
 ---
 
 ## Notes
 
-- The camera must be on the same WiFi network as the Mac
-- CCAPI must be enabled in the camera menu (one-time activation via Canon's desktop tool)
-- Default port is `8080`; configurable in camera menu
-- CORS headers are present in CCAPI responses — but all our calls are server-side so this is irrelevant
-- The polling endpoint does **not** queue events — if you are slow to re-poll, you may miss shots during burst shooting; this is acceptable for v1
+- Camera must be on the same WiFi network as the Mac
+- CCAPI must be enabled once via Canon's activation tool (USB, one-time)
+- HTTPS port: **443** (default) — configurable in camera menu
+- HTTP port: **8080** (if HTTPS disabled)
+- The polling endpoint does **not** queue events — shots during burst may be missed; acceptable for v1
+- `DELETE /ccapi/ver110/event/polling` cancels a pending poll (useful for clean disconnect)
