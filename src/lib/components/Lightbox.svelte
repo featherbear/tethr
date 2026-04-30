@@ -341,10 +341,6 @@
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   }
 
-  .main-img--bg {
-    display: block; /* background layer — always visible */
-  }
-
   .main-img--top {
     /* Foreground layer — fades in on top of bg */
     position: absolute;
