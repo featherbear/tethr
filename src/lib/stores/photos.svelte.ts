@@ -1,7 +1,7 @@
 export type PhotoState = 'loading' | 'thumbnail' | 'fullres';
 
-/** File extensions we consider "RAW" formats */
-const RAW_EXTS = new Set(['.cr3', '.cr2', '.raw', '.nef', '.arw', '.orf', '.raf']);
+/** Canon RAW formats — CR3 (R-series) and CR2 (legacy DSLR) */
+const RAW_EXTS = new Set(['.cr3', '.cr2']);
 
 function stem(filename: string): string {
   const dot = filename.lastIndexOf('.');
