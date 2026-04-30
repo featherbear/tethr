@@ -169,6 +169,29 @@ GET /ccapi/ver110/devicestatus/storage
 
 ---
 
+### Alternative: ver110/event/polling (simpler but requires re-polling)
+
+```
+GET /ccapi/ver110/event/polling
+DELETE /ccapi/ver110/event/polling   ← reset session
+```
+
+**Behaviour:** Blocks until **any** camera event occurs (shot, settings change, etc.), then returns a single flat JSON object and closes. Must be re-issued immediately after each response to continue receiving events.
+
+**Response on shot (same addedcontents format):**
+```json
+{
+  "addedcontents": ["/ccapi/ver120/contents/card1/100EOSR6/4E5A8288.CR3"],
+  "av": { "value": "f2.8", "ability": [...] },
+  "tv": { "value": "1/125", "ability": [] },
+  "recordable": { "recordableshots": 6051, "remainingtime": null }
+}
+```
+
+**vs monitoring:** Both work; monitoring is preferred (persistent stream, no re-poll overhead). Polling is simpler to parse (plain JSON, no binary framing).
+
+---
+
 ## Notes
 
 - Camera must be on the same WiFi network as the Mac
