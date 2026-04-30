@@ -56,7 +56,7 @@
       {:else if photo.state === 'thumbnail'}
         <span class="badge__dot badge__dot--thumb"></span> Preview
       {:else}
-        <span class="badge__dot badge__dot--full"></span> Full res
+        <span class="badge__dot badge__dot--full"></span> HD
       {/if}
     </div>
   </div>
