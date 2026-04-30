@@ -38,6 +38,21 @@
     })
   );
 
+  // Track which photo id renderedUrl belongs to
+  // When photo changes identity, clear renderedUrl so the old photo
+  // doesn't show through as the crossfade bg for the new photo
+  let renderedPhotoId = $state<string | null>(
+    untrack(() => photos[initialIndex]?.id ?? null)
+  );
+
+  $effect(() => {
+    const id = photo?.id ?? null;
+    if (id !== renderedPhotoId) {
+      renderedPhotoId = id;
+      renderedUrl = null; // clear bg — new photo, no crossfade source
+    }
+  });
+
   // Derive the current index from the tracked ID (or 0 in latest mode)
   const index = $derived.by(() => {
     if (latestMode) return 0;
