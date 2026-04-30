@@ -79,16 +79,12 @@
       <!-- Graphical battery -->
       <div class="battery-wrap" title="Battery: {cameraInfo.battery.level}">
         <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <!-- Battery body -->
           <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
             fill="none" stroke="currentColor" stroke-width="1"/>
-          <!-- Battery terminal nub -->
           <rect x="20.5" y="3.5" width="3" height="5" rx="1" ry="1" fill="currentColor"/>
-          <!-- Fill bar -->
           <rect x="2" y="2" width="{fill * 16}" height="8" rx="1" ry="1"
             fill={bColor}/>
         </svg>
-        <span class="battery-label" style:color={bColor}>{cameraInfo.battery.level}</span>
       </div>
 
       {#if cameraInfo.lens}
@@ -207,11 +203,6 @@
     color: #4b5563;
   }
 
-  .battery-label {
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: capitalize;
-  }
 
   /* Lens */
   .lens {
