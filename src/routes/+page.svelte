@@ -18,11 +18,18 @@
   // ---------------------------------------------------------------------------
   // Single global serial camera fetch queue — CCAPI is single-threaded,
   // all camera requests (thumbnail + display) must be serialised.
-  // Priority: 0=thumbnail (urgent), 1=display on-demand, 2=display idle prefetch
   // ---------------------------------------------------------------------------
+  const P = {
+    Thumbnail:    0,  // urgent — JPG thumbnail for new shot
+    ThumbnailRaw: 1,  // urgent — RAW thumbnail (fallback if no JPG)
+    DisplayNow:   2,  // on-demand — lightbox open / navigate
+    DisplayIdle:  3,  // background — idle prefetch
+  } as const;
+  type PValue = typeof P[keyof typeof P];
+
   type Job =
-    | { type: 'thumb';   id: string; dirname: string; filename: string; priority: number }
-    | { type: 'display'; id: string; priority: number };
+    | { type: 'thumb';   id: string; dirname: string; filename: string; priority: PValue }
+    | { type: 'display'; id: string; priority: PValue };
 
   const fetchQueue: Job[] = [];
   let fetchRunning = false;
@@ -54,7 +61,7 @@
       const job = fetchQueue.shift()!;
       if (job.type === 'thumb') {
         const card = photosStore.photos.find(p => p.id === job.id);
-        if (job.priority === 1 && card?.thumbnailUrl) continue; // RAW skipped if JPG thumb exists
+        if (job.priority === P.ThumbnailRaw && card?.thumbnailUrl) continue; // RAW skipped if JPG thumb loaded
         await fetchThumbnail(job.id, job.dirname, job.filename);
       } else {
         await fetchDisplay(job.id);
@@ -64,11 +71,11 @@
   }
 
   function enqueueThumbnail(id: string, dirname: string, filename: string) {
-    const priority = /\.(cr3|cr2)$/i.test(filename) ? 1 : 0;
+    const priority = /\.(cr3|cr2)$/i.test(filename) ? P.ThumbnailRaw : P.Thumbnail;
     enqueueJob({ type: 'thumb', id, dirname, filename, priority });
   }
 
-  function enqueueDisplay(id: string, priority: 1 | 2) {
+  function enqueueDisplay(id: string, priority: typeof P.DisplayNow | typeof P.DisplayIdle) {
     enqueueJob({ type: 'display', id, priority });
   }
 
@@ -119,9 +126,9 @@
       enqueueThumbnail(id, dirname, filename);
       // Cancel idle prefetch timer and flush pending display jobs — camera is active
       if (idlePrefetchTimer) { clearTimeout(idlePrefetchTimer); idlePrefetchTimer = null; }
-      // Remove queued idle display jobs (priority 2) — leave on-demand (1) and thumbnails (0)
+      // Remove queued idle display jobs — leave on-demand display and thumbnails
       for (let i = fetchQueue.length - 1; i >= 0; i--) {
-        if (fetchQueue[i].type === 'display' && fetchQueue[i].priority === 2) {
+        if (fetchQueue[i].type === 'display' && fetchQueue[i].priority === P.DisplayIdle) {
           fetchQueue.splice(i, 1);
         }
       }
@@ -220,7 +227,7 @@
       p.variants.some(v => /\.jpe?g$/i.test(v))
     );
     for (const photo of pending) {
-      enqueueDisplay(photo.id, 2); // priority 2 = idle (lowest)
+      enqueueDisplay(photo.id, P.DisplayIdle);
     }
   }
 
@@ -252,7 +259,7 @@
       lightboxIndex = i;
       // On-demand: priority 1 (ahead of idle prefetch)
       const photo = photosStore.photos[i];
-      if (photo) enqueueDisplay(photo.id, 1);
+      if (photo) enqueueDisplay(photo.id, P.DisplayNow);
     }} />
   </main>
 </div>
@@ -267,7 +274,7 @@
     initialIndex={lightboxIndex}
     liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
-    onfetchdisplay={(id) => enqueueDisplay(id, 1)}
+    onfetchdisplay={(id) => enqueueDisplay(id, P.DisplayNow)}
   />
 {/if}
 
