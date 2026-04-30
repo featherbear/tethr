@@ -58,6 +58,9 @@
     fetchQueue.push({ ...job, seq } as Job);
     // Sort: lowest priority number first; within same priority, newest (highest seq) first
     fetchQueue.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : b.seq - a.seq);
+    const shortId = job.id.split('/').pop();
+    const type = job.type === 'thumb' ? 'preview' : 'full';
+    console.log(`[queue] enqueue ${shortId} (${type}) P=${job.priority} seq=${seq} qlen=${fetchQueue.length}`);
     processFetchQueue();
   }
 
@@ -78,6 +81,9 @@
   }
 
   function enqueueThumbnail(id: string, dirname: string, filename: string) {
+    // Skip if thumbnail already loaded — no need to re-fetch
+    const existing = photosStore.photos.find(p => p.id === id);
+    if (existing?.thumbnailUrl) return;
     const priority = /\.(cr3|cr2)$/i.test(filename) ? P.ThumbnailRaw : P.Thumbnail;
     enqueueJob({ type: 'thumb', id, dirname, filename, priority });
   }
@@ -175,6 +181,8 @@
 
   async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
     const camPath = `${dirname}/${filename}`.replace(/^\//, '');
+    const shortId = id.split('/').pop();
+    console.log(`[fetch] ${shortId} (preview) start`);
     try {
       const res = await fetch(`/api/thumbnail/${camPath}`);
       if (!res.ok) {
@@ -189,6 +197,7 @@
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
+      console.log(`[fetch] ${shortId} (preview) done`);
       photosStore.setThumbnail(id, url);
       // If lightbox is open and showing this photo, fetch display immediately
       const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
@@ -234,8 +243,10 @@
     if (!displayVariant) return;
 
     const camPath = `${photo.dirname}/${displayVariant}`.replace(/^\//, '');
+    const shortId = id.split('/').pop();
     const abortCtrl = new AbortController();
     displayAbortController = abortCtrl;
+    console.log(`[fetch] ${shortId} (full) start`);
 
     try {
       photosStore.setDisplayProgress(id, 0);
@@ -267,8 +278,10 @@
 
       const blob = new Blob(chunks, { type: 'image/jpeg' });
       const url = URL.createObjectURL(blob);
+      console.log(`[fetch] ${shortId} (full) done`);
       photosStore.setDisplay(id, url);
     } catch (e) {
+      console.log(`[fetch] ${shortId} (full) aborted/error`);
       photosStore.setDisplayProgress(id, null);
       // If aborted by a new shot, re-enqueue for that photo (handled by shot handler)
       // Don't retry aborted fetches — the new shot's fetch is already queued
