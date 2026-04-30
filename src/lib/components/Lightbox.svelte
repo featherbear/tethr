@@ -9,9 +9,10 @@
     initialIndex: number;
     liveSettings?: ShootingSettings | null;
     onclose: () => void;
+    onfetchdisplay?: (id: string) => void;
   }
 
-  const { photos, initialIndex, liveSettings = null, onclose }: Props = $props();
+  const { photos, initialIndex, liveSettings = null, onclose, onfetchdisplay }: Props = $props();
 
   let latestMode = $state(false);
   let isFullscreen = $state(false);
@@ -65,16 +66,21 @@
     awbwhite:         'AWB White',
   };
 
+  function navigate(newIndex: number) {
+    currentId = photos[newIndex]?.id ?? currentId;
+    // Trigger display-quality fetch for newly viewed photo
+    const id = photos[newIndex]?.id;
+    if (id) onfetchdisplay?.(id);
+  }
+
   function prev() {
     if (latestMode) return;
-    const newIndex = Math.min(index + 1, photos.length - 1);
-    currentId = photos[newIndex]?.id ?? currentId;
+    navigate(Math.min(index + 1, photos.length - 1));
   }
 
   function next() {
     if (latestMode) return;
-    const newIndex = Math.max(index - 1, 0);
-    currentId = photos[newIndex]?.id ?? currentId;
+    navigate(Math.max(index - 1, 0));
   }
 
   function toggleFullscreen() {
@@ -119,12 +125,10 @@
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
       {#key photo.id}
         <div in:fly={{ y: 20, duration: 200 }} class="image-wrap">
-          {#if photo.thumbnailUrl}
-            <img
-              src={photo.thumbnailUrl}
-              alt={photo.filename}
-              class="main-img"
-            />
+          {#if photo.displayUrl}
+            <img src={photo.displayUrl} alt={photo.filename} class="main-img" transition:fade={{ duration: 250 }} />
+          {:else if photo.thumbnailUrl}
+            <img src={photo.thumbnailUrl} alt={photo.filename} class="main-img main-img--thumb" />
           {:else}
             <div class="placeholder">
               <span class="placeholder-icon">📷</span>
@@ -133,6 +137,13 @@
           {/if}
         </div>
       {/key}
+
+      <!-- Progress bar: shown during display-quality fetch -->
+      {#if photo.displayProgress !== null && !photo.displayUrl}
+        <div class="progress-track">
+          <div class="progress-fill" style:width="{photo.displayProgress}%"></div>
+        </div>
+      {/if}
     </div>
 
     <!-- Bottom bar -->
@@ -251,6 +262,7 @@
     justify-content: center;
     overflow: hidden;
     padding: 3.5rem 4rem 0;
+    position: relative;
   }
 
   .image-wrap {
@@ -267,6 +279,28 @@
     object-fit: contain;
     border-radius: 4px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  .main-img--thumb {
+    filter: blur(0);  /* no blur — thumbnail is already decent quality */
+  }
+
+  /* Progress bar at bottom of image area */
+  .progress-track {
+    position: absolute;
+    bottom: 0;
+    left: 4rem;
+    right: 4rem;
+    height: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 1px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #818cf8;
+    border-radius: 1px;
+    transition: width 0.1s linear;
   }
 
   .placeholder {
