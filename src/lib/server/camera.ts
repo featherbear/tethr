@@ -12,7 +12,7 @@ let _config: CameraConfig = (() => {
     const url = new URL(raw);
     return {
       ip: url.hostname,
-      port: parseInt(url.port) || (url.protocol === 'https:' ? 8443 : 8080),
+      port: parseInt(url.port) || (url.protocol === 'https:' ? 443 : 8080),
       https: url.protocol === 'https:',
     };
   }
