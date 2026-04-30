@@ -1,186 +1,143 @@
-import type { RequestHandler } from './$types';
-import { cameraFetch } from '$lib/server/camera';
+/**
+ * /api/events — Server-Sent Events stream
+ *
+ * Single camera monitoring loop shared across all browser clients.
+ * The camera's /ccapi/ver100/event/monitoring endpoint streams binary-framed
+ * JSON events. We parse these and fan-out to all SSE subscribers.
+ *
+ * Event types emitted to clients:
+ *   status  { status: 'connecting'|'live'|'reconnecting', error?: string }
+ *   shot    { path: string }          — new photo path on camera card
+ *   info    { battery?, recordable? } — camera state updates
+ */
 
-// ---------------------------------------------------------------------------
-// Singleton camera monitor — one connection shared across all SSE clients
-// ---------------------------------------------------------------------------
+import type { RequestHandler } from './$types';
+import { cameraFetch, extractFrames } from '$lib/server/camera';
 
 const MONITOR_PATH = '/ccapi/ver100/event/monitoring';
-const POLL_PATH    = '/ccapi/ver110/event/polling';
-const MIN_BACKOFF_MS = 1_000;
-const MAX_BACKOFF_MS = 30_000;
 
-type SseEvent = { event: string; data: unknown };
-type Subscriber = (e: SseEvent) => void;
+// ---------------------------------------------------------------------------
+// Subscriber registry
+// ---------------------------------------------------------------------------
 
+type Subscriber = (event: string, data: unknown) => void;
 const subscribers = new Set<Subscriber>();
-let monitorRunning = false;
-
-/**
- * Binary frame format from ver100/event/monitoring:
- * [ff ffff 00 02 00 00 00] [4-byte BE length] [JSON bytes]
- */
-const FRAME_MAGIC = Buffer.from([0xff, 0xff, 0xff, 0x00, 0x02, 0x00, 0x00, 0x00]);
-
-function indexOfSequence(buf: Buffer, seq: Buffer): number {
-  outer: for (let i = 0; i <= buf.length - seq.length; i++) {
-    for (let j = 0; j < seq.length; j++) {
-      if (buf[i + j] !== seq[j]) continue outer;
-    }
-    return i;
-  }
-  return -1;
-}
-
-function extractJsonChunks(buf: Buffer): { chunks: string[]; remainder: Buffer } {
-  const chunks: string[] = [];
-  while (true) {
-    const headerIdx = indexOfSequence(buf, FRAME_MAGIC);
-    if (headerIdx === -1) break;
-    const headerEnd = headerIdx + FRAME_MAGIC.length + 4;
-    if (buf.length < headerEnd) break;
-    const payloadLen = buf.readUInt32BE(headerIdx + FRAME_MAGIC.length);
-    const payloadEnd = headerEnd + payloadLen;
-    if (buf.length < payloadEnd) break;
-    chunks.push(buf.subarray(headerEnd, payloadEnd).toString('utf8'));
-    buf = buf.subarray(payloadEnd);
-  }
-  return { chunks, remainder: buf };
-}
 
 function broadcast(event: string, data: unknown) {
-  const e: SseEvent = { event, data };
-  for (const sub of subscribers) sub(e);
+  for (const sub of subscribers) {
+    try { sub(event, data); } catch { /* subscriber disconnected */ }
+  }
 }
 
-async function resetSession(): Promise<void> {
-  await Promise.allSettled([
-    cameraFetch(MONITOR_PATH, { method: 'DELETE', signal: AbortSignal.timeout(5_000) }),
-    cameraFetch(POLL_PATH,    { method: 'DELETE', signal: AbortSignal.timeout(5_000) }),
-  ]);
+// ---------------------------------------------------------------------------
+// Camera monitoring loop — singleton
+// ---------------------------------------------------------------------------
+
+let loopRunning = false;
+
+async function stopMonitoring() {
+  await cameraFetch(MONITOR_PATH, {
+    method: 'DELETE',
+    signal: AbortSignal.timeout(5_000),
+  }).catch(() => {});
 }
 
-/** Start the singleton monitor loop. No-op if already running. */
-async function ensureMonitorRunning() {
-  if (monitorRunning) return;
-  monitorRunning = true;
+async function runMonitorLoop() {
+  if (loopRunning) return;
+  loopRunning = true;
 
-  // Reset once on startup to clear any leftover session
-  await resetSession();
-
-  let backoff = MIN_BACKOFF_MS;
-  let sentLive = false;
+  const MIN_BACKOFF = 1_000;
+  const MAX_BACKOFF = 30_000;
+  let backoff = MIN_BACKOFF;
 
   while (subscribers.size > 0) {
-    try {
-      const res = await cameraFetch(MONITOR_PATH, {
-        signal: AbortSignal.timeout(90_000),
-      });
+    broadcast('status', { status: 'connecting' });
 
-      // 503 means a session is already active — reset and retry
+    try {
+      // No timeout — this is a persistent streaming connection.
+      // The camera pushes frames continuously; we read until done or error.
+      const res = await cameraFetch(MONITOR_PATH);
+
       if (res.status === 503) {
-        await resetSession();
+        // Another session is active — stop it and retry
+        await stopMonitoring();
         continue;
       }
 
-      if (!res.ok) throw new Error(`Camera responded with ${res.status}`);
-      if (!res.body) throw new Error('No response body');
-
-      if (!sentLive) {
-        broadcast('status', { status: 'live' });
-        sentLive = true;
+      if (!res.ok || !res.body) {
+        throw new Error(`Camera responded with ${res.status}`);
       }
 
-      backoff = MIN_BACKOFF_MS;
+      broadcast('status', { status: 'live' });
+      backoff = MIN_BACKOFF;
 
-      let remainder = Buffer.alloc(0);
+      // Stream body — no timeout on reading (camera pushes frames continuously)
       const reader = res.body.getReader();
+      let remainder = Buffer.alloc(0);
 
       while (subscribers.size > 0) {
         const { done, value } = await reader.read();
         if (done) break;
 
         remainder = Buffer.concat([remainder, Buffer.from(value)]);
-        const { chunks, remainder: newRemainder } = extractJsonChunks(remainder);
+        const { frames, remainder: newRemainder } = extractFrames(remainder);
         remainder = newRemainder;
 
-        for (const json of chunks) {
-          try {
-            const data = JSON.parse(json);
-
-            // New photo(s) added to card
-            if (data.addedcontents && Array.isArray(data.addedcontents)) {
-              for (const path of data.addedcontents as string[]) {
-                const parts = path.split('/');
-                const filename = parts.pop()!;
-                const dirname = parts.join('/');
-                broadcast('shot', { dirname, filename });
-              }
+        for (const { parsed } of frames) {
+          // New photos added to card
+          if (Array.isArray(parsed.addedcontents)) {
+            for (const path of parsed.addedcontents as string[]) {
+              broadcast('shot', { path });
             }
+          }
 
-            // Camera info fields — push relevant updates to clients
-            const infoUpdate: Record<string, unknown> = {};
-            if (data.battery)    infoUpdate.battery  = data.battery;
-            if (data.recordable) infoUpdate.recordable = data.recordable;
-            if (Object.keys(infoUpdate).length > 0) {
-              broadcast('info-update', infoUpdate);
-            }
-
-          } catch { /* malformed frame — skip */ }
+          // Camera state updates (battery, recordable shots remaining)
+          const info: Record<string, unknown> = {};
+          if (parsed.battery)    info.battery    = parsed.battery;
+          if (parsed.recordable) info.recordable = parsed.recordable;
+          if (Object.keys(info).length) broadcast('info', info);
         }
       }
 
       reader.releaseLock();
 
     } catch (e) {
-      sentLive = false;
+      if (subscribers.size === 0) break;
       broadcast('status', { status: 'reconnecting', error: String(e) });
       await new Promise(r => setTimeout(r, backoff));
-      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-      // Don't reset here — 503 handling inside the loop covers stuck sessions
+      backoff = Math.min(backoff * 2, MAX_BACKOFF);
     }
   }
 
-  // All subscribers gone — clean up
-  await resetSession().catch(() => {});
-  monitorRunning = false;
+  await stopMonitoring();
+  loopRunning = false;
 }
 
 // ---------------------------------------------------------------------------
 // HTTP handlers
 // ---------------------------------------------------------------------------
 
-/** Frontend calls this on disconnect to immediately release the camera session. */
+/** Frontend calls DELETE to cleanly stop monitoring (e.g. on disconnect). */
 export const DELETE: RequestHandler = async () => {
-  await resetSession().catch(() => {});
+  await stopMonitoring();
   return new Response(null, { status: 204 });
 };
 
+/** SSE stream — one connection per browser tab, all share the same loop. */
 export const GET: RequestHandler = ({ request }) => {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
 
-      const sub: Subscriber = ({ event, data }) => {
-        try {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-        } catch { /* stream closed */ }
+      const sub: Subscriber = (event, data) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+        );
       };
 
       subscribers.add(sub);
+      runMonitorLoop().catch(console.error);
 
-      // Send immediate connecting status
-      sub({ event: 'status', data: { status: 'connecting' } });
-
-      // If monitor already live, tell this client immediately
-      if (monitorRunning) {
-        sub({ event: 'status', data: { status: 'live' } });
-      }
-
-      // Start monitor loop if not already running
-      ensureMonitorRunning().catch(console.error);
-
-      // Clean up when client disconnects
       request.signal.addEventListener('abort', () => {
         subscribers.delete(sub);
         try { controller.close(); } catch { /* already closed */ }

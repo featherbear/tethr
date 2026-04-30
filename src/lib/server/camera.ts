@@ -1,4 +1,17 @@
+/**
+ * camera.ts — server-side camera connection layer
+ *
+ * Single source of truth for all communication with the Canon EOS R6 Mark II
+ * over CCAPI (HTTPS, self-signed cert, port 443).
+ *
+ * All CCAPI interaction happens here. No other file talks to the camera directly.
+ */
+
 import { Agent, fetch as undiciFetch } from 'undici';
+
+// ---------------------------------------------------------------------------
+// Configuration — mutable at runtime via setCameraConfig()
+// ---------------------------------------------------------------------------
 
 interface CameraConfig {
   ip: string;
@@ -9,27 +22,22 @@ interface CameraConfig {
 let _config: CameraConfig = (() => {
   const raw = process.env.CCAPI_BASE_URL;
   if (raw) {
-    const url = new URL(raw);
-    return {
-      ip: url.hostname,
-      port: parseInt(url.port) || (url.protocol === 'https:' ? 443 : 8080),
-      https: url.protocol === 'https:',
-    };
+    try {
+      const url = new URL(raw);
+      return {
+        ip: url.hostname,
+        port: Number(url.port) || (url.protocol === 'https:' ? 443 : 8080),
+        https: url.protocol === 'https:',
+      };
+    } catch { /* fall through to default */ }
   }
   return { ip: '192.168.1.2', port: 8080, https: false };
 })();
 
-// Reusable agent that skips TLS verification — safe for local LAN use
-// with the camera's self-signed certificate.
-const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
-
-export function getCameraConfig(): Readonly<CameraConfig> {
-  return _config;
-}
+export function getCameraConfig(): Readonly<CameraConfig> { return _config; }
 
 export function getCameraBaseUrl(): string {
-  const proto = _config.https ? 'https' : 'http';
-  return `${proto}://${_config.ip}:${_config.port}`;
+  return `${_config.https ? 'https' : 'http'}://${_config.ip}:${_config.port}`;
 }
 
 export function setCameraConfig(ip: string, port: number, https: boolean): string {
@@ -37,16 +45,87 @@ export function setCameraConfig(ip: string, port: number, https: boolean): strin
   return getCameraBaseUrl();
 }
 
-/**
- * fetch() wrapper that automatically applies the insecure TLS agent when
- * communicating with the camera over HTTPS (self-signed cert).
- * Use this everywhere instead of bare fetch() when calling the camera.
- */
-export function cameraFetch(path: string, init?: RequestInit): Promise<Response> {
+// ---------------------------------------------------------------------------
+// HTTP fetch — uses undici Agent to skip TLS verification for self-signed cert
+// ---------------------------------------------------------------------------
+
+const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+
+export function cameraFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const url = `${getCameraBaseUrl()}${path}`;
   if (_config.https) {
-    // undici fetch accepts a dispatcher option for the custom agent
     return undiciFetch(url, { ...(init as object), dispatcher: insecureAgent }) as unknown as Promise<Response>;
   }
   return fetch(url, init);
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring stream frame parser
+//
+// The /ccapi/ver100/event/monitoring endpoint returns a binary-framed stream.
+//
+// Frame format (two variants observed):
+//   First frame:       0xff 0x00 0x02 [4-byte BE length] [JSON]
+//   Subsequent frames: 0xff 0xff 0xff 0x00 0x02 [4-byte BE length] [JSON]
+//
+// Empty frames (length=2, payload="{}") are heartbeats — ignore.
+// ---------------------------------------------------------------------------
+
+export interface MonitoringFrame {
+  raw: string;        // raw JSON string
+  parsed: Record<string, unknown>;
+}
+
+/**
+ * Extract all complete frames from a buffer.
+ * Returns the parsed frames and any remaining incomplete bytes.
+ */
+export function extractFrames(buf: Buffer): { frames: MonitoringFrame[]; remainder: Buffer } {
+  const frames: MonitoringFrame[] = [];
+
+  while (buf.length >= 7) {
+    if (buf[0] !== 0xff) {
+      // Scan forward for next frame marker
+      const next = buf.indexOf(0xff, 1);
+      if (next === -1) { buf = Buffer.alloc(0); break; }
+      buf = buf.subarray(next);
+      continue;
+    }
+
+    let headerSize: number;
+    let lengthOffset: number;
+
+    if (buf.length >= 9 && buf[1] === 0xff && buf[2] === 0xff && buf[3] === 0x00 && buf[4] === 0x02) {
+      // Long header: ff ff ff 00 02 [4-byte len]
+      headerSize = 9;
+      lengthOffset = 5;
+    } else if (buf[1] === 0x00 && buf[2] === 0x02) {
+      // Short header: ff 00 02 [4-byte len]
+      headerSize = 7;
+      lengthOffset = 3;
+    } else {
+      // Unknown — skip this byte and resync
+      buf = buf.subarray(1);
+      continue;
+    }
+
+    if (buf.length < headerSize) break; // incomplete header
+
+    const payloadLen = buf.readUInt32BE(lengthOffset);
+    const frameEnd = headerSize + payloadLen;
+
+    if (buf.length < frameEnd) break; // incomplete payload
+
+    const payload = buf.subarray(headerSize, frameEnd).toString('utf8');
+    buf = buf.subarray(frameEnd);
+
+    if (payloadLen <= 2) continue; // heartbeat ("{}") — skip
+
+    try {
+      const parsed = JSON.parse(payload) as Record<string, unknown>;
+      frames.push({ raw: payload, parsed });
+    } catch { /* malformed — skip */ }
+  }
+
+  return { frames, remainder: buf };
 }

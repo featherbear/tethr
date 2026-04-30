@@ -45,10 +45,9 @@
       }
     });
 
-    eventSource.addEventListener('info-update', (e) => {
+    eventSource.addEventListener('info', (e) => {
       const update = JSON.parse(e.data) as {
         battery?: { level: string; quality: string; name: string };
-        recordable?: { recordableshots: number; remainingtime: null };
       };
       const current = cameraInfoStore.info;
       if (!current) return;
@@ -59,13 +58,13 @@
     });
 
     eventSource.addEventListener('shot', (e) => {
-      const shot = JSON.parse(e.data) as {
-        storagegen: string;
-        dirname: string;
-        filename: string;
-      };
-      const id = photosStore.addPlaceholder(shot.dirname, shot.filename);
-      fetchThumbnail(id, shot.dirname, shot.filename);
+      // path = "/ccapi/ver120/contents/card1/100EOSR6/4E5A8395.JPG"
+      const { path } = JSON.parse(e.data) as { path: string };
+      const parts = path.split('/');
+      const filename = parts.pop()!;
+      const dirname = parts.join('/');
+      const id = photosStore.addPlaceholder(dirname, filename);
+      fetchThumbnail(id, dirname, filename);
     });
 
     eventSource.onerror = () => {
