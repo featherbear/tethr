@@ -1,0 +1,45 @@
+/**
+ * /api/state — initial page load state
+ *
+ * Returns the current connection status and camera info in one request,
+ * so the page can render the correct initial state without waiting for SSE.
+ */
+
+import type { RequestHandler } from './$types';
+import { json } from '@sveltejs/kit';
+import { getStatus } from '$lib/server/monitor';
+import { cameraFetch, getCameraConfig } from '$lib/server/camera';
+
+export const GET: RequestHandler = async () => {
+  const { status, error } = getStatus();
+  const config = getCameraConfig();
+
+  let cameraInfo = null;
+  if (status === 'live') {
+    try {
+      const [deviceRes, batteryRes, storageRes] = await Promise.all([
+        cameraFetch('/ccapi/ver100/deviceinformation', { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver100/devicestatus/battery',  { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver110/devicestatus/storage',  { signal: AbortSignal.timeout(5_000) }),
+      ]);
+      if (deviceRes.ok && batteryRes.ok) {
+        const device  = await deviceRes.json();
+        const battery = await batteryRes.json();
+        const storage = storageRes.ok ? await storageRes.json() : null;
+        cameraInfo = {
+          productname:     device.productname     ?? 'Unknown Camera',
+          serialnumber:    device.serialnumber    ?? '',
+          firmwareversion: device.firmwareversion ?? '',
+          battery: {
+            level:   battery.level   ?? 'unknown',
+            quality: battery.quality ?? 'normal',
+            name:    battery.name    ?? '',
+          },
+          storage: storage?.storagelist?.[0] ?? null,
+        };
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  return json({ status, error, config, cameraInfo });
+};
