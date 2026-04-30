@@ -45,52 +45,37 @@
   //      fadingUrl = displayUrl; shimmer = false
   //      → onintroend: shownUrl = displayUrl; fadingUrl = null
   // ---------------------------------------------------------------------------
-  let shownUrl  = $state<string | null>(
+  // shownUrl: the image currently visible (crossfade source/background)
+  // Starts as best available for opening photo; updated via onintroend
+  let shownUrl = $state<string | null>(
     untrack(() => { const p = photos[initialIndex]; return p?.displayUrl ?? p?.thumbnailUrl ?? null; })
   );
-  let fadingUrl = $state<string | null>(null);
-  let shimmer   = $state(false);
 
-  // Track the photo id we last processed so we can detect photo changes
+  // Track processed photo id to detect photo changes
   let processedId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
 
+  // Request display fetch when needed (on mount and photo change)
   $effect(() => {
     if (!photo) return;
     const id = photo.id;
-
-    if (id !== processedId) {
-      // Photo changed — clear fading, keep shownUrl as crossfade source
-      processedId = id;
-      fadingUrl = null;
-      shimmer = false; // shimmer only shows when a fetch is actually in progress
-    }
-
-    // Always ensure display fetch is requested for current photo
-    // (covers: initial mount, photo change, navigate)
+    if (id !== processedId) processedId = id;
     if (!photo.displayUrl && photo.displayProgress === null) {
       onfetchdisplay?.(id);
     }
-
-    // Determine the best available URL for this photo
-    const best = latestMode
-      ? photo.displayUrl ?? null          // latest mode: only HD, no thumbnail flash
-      : photo.displayUrl ?? photo.thumbnailUrl ?? null;
-
-    if (best && best !== shownUrl && best !== fadingUrl) {
-      // A better image is available — fade it in
-      fadingUrl = best;
-      shimmer = false;
-    }
-
-    // Show shimmer only while a display fetch is actually in progress
-    // (displayProgress !== null means fetch has started but not completed)
-    const fetchInProgress = photo.displayProgress !== null && !photo.displayUrl;
-    if (fetchInProgress && !fadingUrl) {
-      shimmer = true;
-    } else if (!fetchInProgress || fadingUrl) {
-      shimmer = false;
-    }
   });
+
+  // The URL we want to show next (drives the fade-in layer)
+  // Derived directly from photo state — no mutable intermediary
+  const targetUrl = $derived.by(() => {
+    if (!photo) return null;
+    if (latestMode) return photo.displayUrl ?? null;
+    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
+  });
+
+  // Shimmer: show while display fetch is in progress and no display yet
+  const shimmer = $derived(
+    photo !== null && photo.displayProgress !== null && photo.displayUrl === null
+  );
 
   const timeLabel = $derived(
     photo
@@ -196,23 +181,22 @@
           </div>
         {/if}
 
-        <!-- Layer 2 (top): new image fades in; on complete → becomes shownUrl -->
-        {#if fadingUrl}
-          {@const url = fadingUrl}
-          {#key url}
+        <!-- Layer 2 (top): targetUrl fades in when different from shownUrl -->
+        {#if targetUrl && targetUrl !== shownUrl}
+          {#key targetUrl}
             <img
-              src={url}
+              src={targetUrl}
               alt={photo.filename}
               class="main-img main-img--top"
               in:fade={{ duration: 300 }}
-              onintroend={() => { shownUrl = url; fadingUrl = null; }}
-              onerror={() => { fadingUrl = null; }}
+              onintroend={() => { shownUrl = targetUrl; }}
+              onerror={() => { /* leave shownUrl — keep previous visible */ }}
             />
           {/key}
         {/if}
 
-        <!-- Shimmer border: visible while waiting for next image -->
-        {#if shimmer || (fadingUrl !== null)}
+        <!-- Shimmer border: visible while display fetch is in progress -->
+        {#if shimmer}
           <div class="shimmer-border"></div>
         {/if}
       </div>
@@ -355,10 +339,14 @@
   }
 
   .main-img--top {
-    /* Foreground layer — fades in on top of bg */
+    /* Foreground layer — fades in on top of bg image */
     position: absolute;
-    inset: 0;
-    margin: auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 100%;
+    max-height: calc(100vh - 10rem);
+    object-fit: contain;
   }
 
   /* Shimmer border — pulses around image-wrap while HD fetch is in progress */
