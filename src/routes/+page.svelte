@@ -93,6 +93,8 @@
       const dirname = parts.join('/');
       const id = photosStore.addOrMerge(dirname, filename, settings);
       enqueueThumbnail(id, dirname, filename);
+      // Cancel any idle prefetch — camera is active
+      if (idlePrefetchTimer) { clearTimeout(idlePrefetchTimer); idlePrefetchTimer = null; }
     });
 
     eventSource.addEventListener('info', (e) => {
@@ -128,6 +130,8 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
+      // Schedule idle prefetch after thumbnail is ready
+      scheduleIdlePrefetch();
     } catch { /* silent */ }
   }
 
@@ -166,6 +170,32 @@
       const url = URL.createObjectURL(blob);
       photosStore.setDisplay(id, url);
     } catch { photosStore.setDisplayProgress(id, 0); }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Idle prefetch — fetch display-quality images during inactivity (newest first)
+  // ---------------------------------------------------------------------------
+  let idlePrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+  const IDLE_DELAY_MS = 3_000; // wait 3s of inactivity before prefetching
+
+  function scheduleIdlePrefetch() {
+    if (idlePrefetchTimer) clearTimeout(idlePrefetchTimer);
+    idlePrefetchTimer = setTimeout(runIdlePrefetch, IDLE_DELAY_MS);
+  }
+
+  async function runIdlePrefetch() {
+    // Find photos that have a thumbnail but no display image yet, newest first
+    const pending = photosStore.photos.filter(p =>
+      p.thumbnailUrl && !p.displayUrl && p.displayProgress === null &&
+      p.variants.some(v => /\.jpe?g$/i.test(v))
+    );
+    for (const photo of pending) {
+      // Re-check in case a shot arrived while prefetching
+      if (photosStore.photos.some(p => p.id !== photo.id && p.displayProgress !== null)) break;
+      await fetchDisplay(photo.id);
+      // Small gap between fetches to avoid overwhelming the camera
+      await new Promise(r => setTimeout(r, 500));
+    }
   }
 
   // ---------------------------------------------------------------------------
