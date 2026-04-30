@@ -45,13 +45,13 @@
         fetchQueue.splice(existing, 1);
       }
     }
-    // For display jobs: skip if already loaded or already queued
+    // For display jobs: skip if already loaded, in progress, or already queued
     if (job.type === 'display') {
       const photo = photosStore.photos.find(p => p.id === job.id);
       if (!photo || photo.displayUrl) return;
-      // For on-demand (P.DisplayNow): allow re-queue even if in progress (navigate mid-fetch)
-      // For idle (P.DisplayIdle): skip if already in progress or queued
-      if (job.priority === P.DisplayIdle && photo.displayProgress !== null) return;
+      // Skip if a fetch is already running for this photo (in-flight download will complete)
+      if (photo.displayProgress !== null) return;
+      // Skip if already queued
       if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
     }
     fetchQueue.push({ ...job, seq } as Job);
