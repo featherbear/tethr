@@ -243,8 +243,8 @@
   }
   .btn-icon:hover { background: rgba(255,255,255,0.12); color: #e5e7eb; }
 
-  .btn-close      { right: 1rem; }
-  .btn-fullscreen { right: 3.5rem; }
+  .btn-close      { right: 1rem; z-index: 10; }
+  .btn-fullscreen { right: 3.5rem; z-index: 10; }
 
   .sr-only {
     position: absolute;
