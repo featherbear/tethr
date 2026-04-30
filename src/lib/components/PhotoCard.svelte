@@ -13,9 +13,9 @@
     photo.capturedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   );
 
-  // Show variant count if more than one file for this shot
+  // Always show file extension(s) — single file shows e.g. "JPG", multiple show "JPG+CR3"
   const variantLabel = $derived(
-    photo.variants.length > 1 ? photo.variants.map(v => v.split('.').pop()?.toUpperCase()).join('+') : null
+    photo.variants.map(v => v.split('.').pop()?.toUpperCase()).join('+')
   );
 </script>
 
@@ -66,8 +66,6 @@
     <div class="meta-right">
       {#if variantLabel}
         <span class="variant-badge">{variantLabel}</span>
-      {:else if photo.hasRaw}
-        <span class="variant-badge">RAW</span>
       {/if}
       <span class="time">{timeLabel}</span>
     </div>
