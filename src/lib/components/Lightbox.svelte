@@ -181,18 +181,15 @@
           </div>
         {/if}
 
-        <!-- Layer 2 (top): targetUrl fades in when different from shownUrl -->
+        <!-- Layer 2 (top): targetUrl swaps in instantly when better image is ready -->
         {#if targetUrl && targetUrl !== shownUrl}
-          {#key targetUrl}
-            <img
-              src={targetUrl}
-              alt={photo.filename}
-              class="main-img main-img--top"
-              in:fade={{ duration: 300 }}
-              onintroend={() => { shownUrl = targetUrl; }}
-              onerror={() => { /* leave shownUrl — keep previous visible */ }}
-            />
-          {/key}
+          <img
+            src={targetUrl}
+            alt={photo.filename}
+            class="main-img main-img--top"
+            onload={() => { shownUrl = targetUrl; }}
+            onerror={() => { /* leave shownUrl — keep previous visible */ }}
+          />
         {/if}
 
         <!-- Shimmer border: visible while display fetch is in progress -->
