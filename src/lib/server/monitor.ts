@@ -128,7 +128,9 @@ async function runLoop(signal: AbortSignal) {
         throw new Error(`Camera responded with ${res.status}`);
       }
 
-      // Fetch all initial shooting settings in one request before entering stream
+      // Fetch all initial shooting settings in one request — store but don't broadcast.
+      // Clients get initial settings via GET /api/state on page load.
+      // SSE 'settings' events are delta-only (real changes from stream frames).
       try {
         const settingsRes = await cameraFetch('/ccapi/ver100/shooting/settings', { signal: AbortSignal.timeout(5_000) });
         if (settingsRes.ok) {
@@ -138,7 +140,7 @@ async function runLoop(signal: AbortSignal) {
             return (v !== null && v !== undefined && v !== '') ? String(v) : null;
           };
           const ctRaw = all['colortemperature']?.value;
-          const initial: ShootingSettings = {
+          setSettings_({
             av:          val('av'),
             tv:          val('tv'),
             iso:         val('iso'),
@@ -149,9 +151,8 @@ async function runLoop(signal: AbortSignal) {
             metering:    val('metering'),
             drive:       val('drive'),
             afoperation: val('afoperation'),
-          };
-          setSettings_(initial);
-          broadcast('settings', initial);
+          });
+          // No broadcast here — /api/state serves the initial values
         }
       } catch { /* non-fatal — stream will fill in values as dials change */ }
 
