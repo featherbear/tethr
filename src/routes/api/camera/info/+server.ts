@@ -11,20 +11,15 @@ export interface CameraInfo {
     quality: string; // 'normal' | 'degraded'
     name: string;    // e.g. 'LP-E6NH'
   };
-  storage: {
-    name: string;
-    maxsize: number;
-    spacesize: number;
-    contentsnumber: number;
-  } | null;
+  lens: string | null;  // e.g. "TAMRON SP 24-70mm F/2.8 Di VC USD G2 A032"
 }
 
 export const GET: RequestHandler = async () => {
   try {
-    const [deviceRes, batteryRes, storageRes] = await Promise.all([
-      cameraFetch('/ccapi/ver100/deviceinformation', { signal: AbortSignal.timeout(8_000) }),
+    const [deviceRes, batteryRes, lensRes] = await Promise.all([
+      cameraFetch('/ccapi/ver100/deviceinformation',   { signal: AbortSignal.timeout(8_000) }),
       cameraFetch('/ccapi/ver100/devicestatus/battery', { signal: AbortSignal.timeout(8_000) }),
-      cameraFetch('/ccapi/ver110/devicestatus/storage', { signal: AbortSignal.timeout(8_000) }),
+      cameraFetch('/ccapi/ver100/devicestatus/lens',    { signal: AbortSignal.timeout(8_000) }),
     ]);
 
     if (!deviceRes.ok)  error(502, 'Failed to fetch device information');
@@ -32,18 +27,18 @@ export const GET: RequestHandler = async () => {
 
     const device  = await deviceRes.json();
     const battery = await batteryRes.json();
-    const storage = storageRes.ok ? await storageRes.json() : null;
+    const lens    = lensRes.ok ? await lensRes.json() : null;
 
     const info: CameraInfo = {
-      productname:     device.productname  ?? 'Unknown Camera',
-      serialnumber:    device.serialnumber ?? '',
+      productname:     device.productname     ?? 'Unknown Camera',
+      serialnumber:    device.serialnumber    ?? '',
       firmwareversion: device.firmwareversion ?? '',
       battery: {
         level:   battery.level   ?? 'unknown',
         quality: battery.quality ?? 'normal',
         name:    battery.name    ?? '',
       },
-      storage: storage?.storagelist?.[0] ?? null,
+      lens: lens?.mount ? (lens.name ?? null) : null,
     };
 
     return json(info);

@@ -17,15 +17,15 @@ export const GET: RequestHandler = async () => {
   let cameraInfo = null;
   if (status === 'live') {
     try {
-      const [deviceRes, batteryRes, storageRes] = await Promise.all([
-        cameraFetch('/ccapi/ver100/deviceinformation', { signal: AbortSignal.timeout(5_000) }),
-        cameraFetch('/ccapi/ver100/devicestatus/battery',  { signal: AbortSignal.timeout(5_000) }),
-        cameraFetch('/ccapi/ver110/devicestatus/storage',  { signal: AbortSignal.timeout(5_000) }),
+      const [deviceRes, batteryRes, lensRes] = await Promise.all([
+        cameraFetch('/ccapi/ver100/deviceinformation',    { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver100/devicestatus/battery', { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver100/devicestatus/lens',    { signal: AbortSignal.timeout(5_000) }),
       ]);
       if (deviceRes.ok && batteryRes.ok) {
         const device  = await deviceRes.json();
         const battery = await batteryRes.json();
-        const storage = storageRes.ok ? await storageRes.json() : null;
+        const lens = lensRes.ok ? await lensRes.json() : null;
         cameraInfo = {
           productname:     device.productname     ?? 'Unknown Camera',
           serialnumber:    device.serialnumber    ?? '',
@@ -35,7 +35,7 @@ export const GET: RequestHandler = async () => {
             quality: battery.quality ?? 'normal',
             name:    battery.name    ?? '',
           },
-          storage: storage?.storagelist?.[0] ?? null,
+          lens: lens?.mount ? (lens.name ?? null) : null,
         };
       }
     } catch { /* non-fatal */ }

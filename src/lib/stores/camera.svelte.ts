@@ -1,4 +1,4 @@
-export type ConnectionStatus = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'error';
+export type ConnectionStatus = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'error' | 'stopped';
 
 const ls = (key: string, fallback: string) =>
   typeof localStorage !== 'undefined' ? (localStorage.getItem(key) ?? fallback) : fallback;

@@ -3,16 +3,11 @@ export interface CameraInfo {
   serialnumber: string;
   firmwareversion: string;
   battery: {
-    level: string;
-    quality: string;
+    level: string;   // 'high' | 'half' | 'low' | 'exhausted'
+    quality: string; // 'normal' | 'degraded'
     name: string;
   };
-  storage: {
-    name: string;
-    maxsize: number;
-    spacesize: number;
-    contentsnumber: number;
-  } | null;
+  lens: string | null;
 }
 
 export const cameraInfoStore = (() => {
@@ -35,29 +30,3 @@ export const cameraInfoStore = (() => {
   };
 })();
 
-/** Format bytes as human-readable GB/MB string */
-export function formatBytes(bytes: number): string {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
-  return `${bytes} B`;
-}
-
-/** Battery level → colour */
-export function batteryColor(level: string): string {
-  switch (level) {
-    case 'high': return '#22c55e';
-    case 'half': return '#f59e0b';
-    case 'low':  return '#ef4444';
-    default:     return '#6b7280';
-  }
-}
-
-/** Battery level → icon character */
-export function batteryIcon(level: string): string {
-  switch (level) {
-    case 'high': return '🔋';
-    case 'half': return '🔋';
-    case 'low':  return '🪫';
-    default:     return '🔋';
-  }
-}
