@@ -78,11 +78,10 @@
   function navigate(newIndex: number) {
     const newPhoto = photos[newIndex];
     if (!newPhoto) return;
+    // Do NOT update renderedUrl here — it must stay as the current photo's
+    // image so it acts as the crossfade source. renderedUrl is only updated
+    // via onintroend after the new image has fully faded in.
     currentId = newPhoto.id;
-    // When navigating, keep renderedUrl as-is (crossfade from current)
-    // but update it to whatever the new photo already has loaded
-    const alreadyLoaded = newPhoto.displayUrl ?? (latestMode ? null : newPhoto.thumbnailUrl) ?? null;
-    if (alreadyLoaded) renderedUrl = alreadyLoaded;
     onfetchdisplay?.(newPhoto.id);
   }
 
