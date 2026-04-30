@@ -132,6 +132,11 @@
           fetchQueue.splice(i, 1);
         }
       }
+      // If lightbox is in latest mode, jump to new photo and fetch display immediately
+      if (lightboxIndex !== null) {
+        lightboxIndex = 0; // latest mode always shows index 0 (newest)
+        enqueueDisplay(id, P.DisplayNow);
+      }
     });
 
     eventSource.addEventListener('info', (e) => {
@@ -179,8 +184,14 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
-      // Schedule idle prefetch after thumbnail is ready
-      scheduleIdlePrefetch();
+      // If lightbox is open and showing this photo, fetch display immediately
+      const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
+      if (currentPhoto?.id === id) {
+        enqueueDisplay(id, P.DisplayNow);
+      } else {
+        // Otherwise schedule idle prefetch
+        scheduleIdlePrefetch();
+      }
     } catch { /* silent */ }
   }
 
