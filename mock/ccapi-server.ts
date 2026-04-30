@@ -90,22 +90,65 @@ Bun.serve({
       });
     }
 
-    // Long-poll event endpoint (ver110)
+    // Long-poll event endpoint (ver110) — DELETE only for session reset
     if (path === '/ccapi/ver110/event/polling') {
-      if (req.method === 'DELETE') {
-        return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
-      }
-      return new Promise<Response>((resolve) => {
-        pendingPollers.push({ resolve });
-      });
+      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Event monitoring session reset (ver100)
+    // Event monitoring stream (ver100) — binary-framed chunked JSON
     if (path === '/ccapi/ver100/event/monitoring') {
       if (req.method === 'DELETE') {
         return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
       }
-      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+
+      // Return a ReadableStream that emits binary-framed JSON events as shots fire
+      const MAGIC = new Uint8Array([0xff, 0xff, 0xff, 0x00, 0x02, 0x00, 0x00, 0x00]);
+
+      function makeFrame(json: string): Uint8Array {
+        const payload = new TextEncoder().encode(json);
+        const len = new Uint8Array(4);
+        new DataView(len.buffer).setUint32(0, payload.length, false);
+        const frame = new Uint8Array(MAGIC.length + 4 + payload.length);
+        frame.set(MAGIC, 0);
+        frame.set(len, MAGIC.length);
+        frame.set(payload, MAGIC.length + 4);
+        return frame;
+      }
+
+      let streamClosed = false;
+      const body = new ReadableStream({
+        start(controller) {
+          // Send an initial empty frame to signal connection
+          controller.enqueue(makeFrame('{}'));
+
+          // Register as a poller — fire shot frames when shots happen
+          const resolver = (response: Response) => {
+            if (streamClosed) return;
+            // Re-resolve means a shot fired; parse and re-enqueue
+            response.json().then((data) => {
+              if (data.kind === 'shotnotification' && data.value?.path) {
+                const frame = makeFrame(JSON.stringify({
+                  addedcontents: [data.value.path],
+                }));
+                controller.enqueue(frame);
+              }
+              // Re-register for next shot
+              if (!streamClosed) pendingPollers.push({ resolve: resolver });
+            });
+          };
+          pendingPollers.push({ resolve: resolver });
+        },
+        cancel() {
+          streamClosed = true;
+        },
+      });
+
+      return new Response(body, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Transfer-Encoding': 'chunked',
+        },
+      });
     }
 
     return new Response('Not Found', { status: 404 });
