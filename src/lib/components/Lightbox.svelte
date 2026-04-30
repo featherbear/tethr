@@ -316,7 +316,7 @@
   }
 
   .main-img--bg {
-    /* Background layer — always visible, no pointer events needed */
+    display: block; /* background layer — always visible */
   }
 
   .main-img--top {
