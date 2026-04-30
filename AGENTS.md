@@ -17,6 +17,7 @@ AI assistant for a **Tauri v2 + SvelteKit (Svelte 5)** desktop app that previews
 - **TypeScript everywhere:** all new files must be `.ts` / `.svelte` with `<script lang="ts">`
 - **Verify before claiming done:** run `pnpm check` and/or `pnpm build` and read output — never assume success
 - **No hallucination:** if unsure about a file or API shape, read it first
+- **Probe before implementing:** for any external API (especially CCAPI), `curl` the real endpoint and inspect the raw response before writing a single line of code
 
 ---
 

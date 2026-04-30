@@ -19,6 +19,18 @@
 
 ## Patterns
 
+### CCAPI is single-threaded — concurrent requests cause 503
+- **Symptom:** Second simultaneous fetch to camera returns HTTP 503
+- **Root cause:** CCAPI processes one HTTP request at a time. Concurrent fetches (e.g. thumbnail for CR3 and JPG arriving together) will 503 on the second request.
+- **Fix:** Serialise all camera fetches through a queue. Only one in-flight request at a time.
+- **Prevention:** Never fire concurrent `cameraFetch()` calls. Use a queue with priority ordering (e.g. JPG before CR3 for thumbnails).
+
+### AbortSignal.timeout() kills streaming body reads, not just TCP connect
+- **Symptom:** Persistent SSE/streaming connections disconnect after N seconds with `TimeoutError`
+- **Root cause:** `AbortSignal.timeout(N)` starts a timer when the fetch begins. It aborts the entire request — including ongoing body reads — after N ms, even if the connection is healthy.
+- **Fix:** Do not use `AbortSignal.timeout()` on persistent streaming connections. Only use it for discrete request/response calls (e.g. DELETE, GET of small JSON).
+- **Prevention:** Distinguish between "connect timeout" (discrete requests) and "stream lifetime" (persistent body reads). Never set a timeout on a streaming fetch.
+
 ### SvelteKit SSR crash: relative fetch in onDestroy
 - **Symptom:** Server crashes on startup with `Cannot call fetch eagerly during server-side rendering with relative URL`
 - **Root cause:** `onDestroy` runs during SSR rendering on the server, so any `fetch()` or browser API inside it fires server-side where relative URLs are invalid
