@@ -13,6 +13,18 @@
   let useHttps = $state(cameraStore.useHttps);
   let saving   = $state(false);
 
+  // Auto-switch protocol when port is changed to a well-known value
+  function onPortChange() {
+    if (port === 443) useHttps = true;
+    else if (port === 8080) useHttps = false;
+  }
+
+  // Auto-switch port when protocol is changed (only if on the other's default)
+  function onProtocolChange() {
+    if (useHttps && port === 8080) port = 443;
+    else if (!useHttps && port === 443) port = 8080;
+  }
+
   const isConnected = $derived(
     cameraStore.status === 'live' || cameraStore.status === 'connecting'
   );
@@ -43,7 +55,7 @@
   <div class="fields">
     <div class="field field--protocol">
       <label for="camera-https">Protocol</label>
-      <select id="camera-https" bind:value={useHttps} disabled={isConnected}>
+      <select id="camera-https" bind:value={useHttps} onchange={onProtocolChange} disabled={isConnected}>
         <option value={false}>HTTP</option>
         <option value={true}>HTTPS</option>
       </select>
@@ -66,6 +78,7 @@
         bind:value={port}
         min="1"
         max="65535"
+        onchange={onPortChange}
         disabled={isConnected}
       />
     </div>
