@@ -21,6 +21,15 @@
   // untrack() reads initial prop values without creating reactive dependencies
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
+  // Track the last image URL we successfully displayed — keeps previous photo
+  // visible while the new one is still loading (crossfade UX)
+  let renderedUrl = $state<string | null>(
+    untrack(() => {
+      const p = photos[initialIndex];
+      return p?.displayUrl ?? p?.thumbnailUrl ?? null;
+    })
+  );
+
   // Derive the current index from the tracked ID (or 0 in latest mode)
   const index = $derived.by(() => {
     if (latestMode) return 0;
@@ -67,10 +76,14 @@
   };
 
   function navigate(newIndex: number) {
-    currentId = photos[newIndex]?.id ?? currentId;
-    // Trigger display-quality fetch for newly viewed photo
-    const id = photos[newIndex]?.id;
-    if (id) onfetchdisplay?.(id);
+    const newPhoto = photos[newIndex];
+    if (!newPhoto) return;
+    currentId = newPhoto.id;
+    // When navigating, keep renderedUrl as-is (crossfade from current)
+    // but update it to whatever the new photo already has loaded
+    const alreadyLoaded = newPhoto.displayUrl ?? (latestMode ? null : newPhoto.thumbnailUrl) ?? null;
+    if (alreadyLoaded) renderedUrl = alreadyLoaded;
+    onfetchdisplay?.(newPhoto.id);
   }
 
   function prev() {
@@ -123,35 +136,40 @@
   <!-- Main image area -->
   {#if photo}
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
-      <!-- Keep previous image visible while new one loads; crossfade when ready -->
-      <!-- No {#key} — we let images layer on top of each other -->
+      <!-- Image wrap: renderedUrl holds the last good image (prev or current).
+           When a better image arrives, it fades in on top via {#key}. -->
       <div class="image-wrap">
-        {#if photo.displayUrl}
-          <!-- Display quality ready — fade in on top, previous image underneath -->
-          {#key photo.displayUrl}
-            <img
-              src={photo.displayUrl}
-              alt={photo.filename}
-              class="main-img"
-              in:fade={{ duration: 300 }}
-            />
-          {/key}
-        {:else if photo.thumbnailUrl && !latestMode}
-          <!-- Non-latest mode: show thumbnail immediately -->
-          {#key photo.thumbnailUrl}
-            <img
-              src={photo.thumbnailUrl}
-              alt={photo.filename}
-              class="main-img main-img--thumb"
-              in:fade={{ duration: 200 }}
-            />
-          {/key}
-        {:else if !photo.thumbnailUrl && !photo.displayUrl}
-          <!-- Nothing loaded yet -->
+        <!-- Layer 1: previous/current rendered image (always visible until replaced) -->
+        {#if renderedUrl}
+          <img src={renderedUrl} alt={photo.filename} class="main-img main-img--bg" />
+        {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
             <span>Loading…</span>
           </div>
+        {/if}
+
+        <!-- Layer 2: new image fades in on top when ready -->
+        {#if photo.displayUrl && photo.displayUrl !== renderedUrl}
+          {#key photo.displayUrl}
+            <img
+              src={photo.displayUrl}
+              alt={photo.filename}
+              class="main-img main-img--top"
+              in:fade={{ duration: 300 }}
+              onintroend={() => { renderedUrl = photo.displayUrl; }}
+            />
+          {/key}
+        {:else if photo.thumbnailUrl && !latestMode && photo.thumbnailUrl !== renderedUrl && !photo.displayUrl}
+          {#key photo.thumbnailUrl}
+            <img
+              src={photo.thumbnailUrl}
+              alt={photo.filename}
+              class="main-img main-img--top"
+              in:fade={{ duration: 200 }}
+              onintroend={() => { renderedUrl = photo.thumbnailUrl; }}
+            />
+          {/key}
         {/if}
       </div>
 
@@ -297,8 +315,15 @@
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   }
 
-  .main-img--thumb {
-    filter: blur(0);  /* no blur — thumbnail is already decent quality */
+  .main-img--bg {
+    /* Background layer — always visible, no pointer events needed */
+  }
+
+  .main-img--top {
+    /* Foreground layer — fades in on top of bg */
+    position: absolute;
+    inset: 0;
+    margin: auto;
   }
 
   /* Shimmer border — pulses around image-wrap while HD fetch is in progress */
