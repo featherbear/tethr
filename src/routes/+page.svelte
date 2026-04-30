@@ -57,8 +57,25 @@
       if (photo.displayProgress !== null) return;
     }
     fetchQueue.push({ ...job, seq } as Job);
-    // Sort: lowest priority number first; within same priority, newest (highest seq) first
-    fetchQueue.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : b.seq - a.seq);
+    // Sort key: [photo recency DESC (lower index = newer), then thumb before display, then seq DESC]
+    // This ensures newest photo loads completely (thumb then display) before older photos
+    const photoIndex = (j: Job) => {
+      const i = photosStore.photos.findIndex(p => p.id === j.id);
+      return i === -1 ? 999 : i; // lower index = newer photo
+    };
+    const typeOrder = (j: Job) => {
+      // Within a photo: thumb before display; urgent display before raw thumb
+      if (j.type === 'thumb' && j.priority === P.Thumbnail) return 0;
+      if (j.type === 'display' && j.priority === P.DisplayUrgent) return 1;
+      if (j.type === 'thumb' && j.priority === P.ThumbnailRaw) return 2;
+      if (j.type === 'display' && j.priority === P.DisplayNow) return 3;
+      return 4; // DisplayIdle
+    };
+    fetchQueue.sort((a, b) => {
+      const pa = photoIndex(a), pb = photoIndex(b);
+      if (pa !== pb) return pa - pb; // newer photo first
+      return typeOrder(a) - typeOrder(b); // within same photo: thumb → urgent display → raw thumb → display
+    });
     processFetchQueue();
   }
 
@@ -149,9 +166,7 @@
           }
         }
         lightboxIndex = 0;
-        enqueueDisplay(id, P.DisplayUrgent);
-        // Re-sort after demotion
-        fetchQueue.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : b.seq - a.seq);
+        enqueueDisplay(id, P.DisplayUrgent); // enqueueJob re-sorts
       }
     });
 
