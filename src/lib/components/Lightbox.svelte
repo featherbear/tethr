@@ -21,12 +21,20 @@
   // untrack() reads initial prop values without creating reactive dependencies
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
-  // Track the last image URL we successfully displayed — keeps previous photo
-  // visible while the new one is still loading (crossfade UX)
+  // The best available URL for the current photo (display > thumbnail)
+  // Updated reactively — drives the top fade-in layer
+  const currentBestUrl = $derived.by(() => {
+    if (!photo) return null;
+    if (latestMode) return photo.displayUrl ?? null; // no thumbnail in latest mode
+    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
+  });
+
+  // Track the last rendered URL — stays as crossfade source while new image loads
+  // Only updated via onintroend after a fade completes
   let renderedUrl = $state<string | null>(
     untrack(() => {
       const p = photos[initialIndex];
-      return p?.displayUrl ?? p?.thumbnailUrl ?? null;
+      return p?.displayUrl ?? (latestMode ? null : p?.thumbnailUrl) ?? null;
     })
   );
 
@@ -153,28 +161,15 @@
           </div>
         {/if}
 
-        <!-- Layer 2: new image fades in on top when ready -->
-        {#if photo.displayUrl && photo.displayUrl !== renderedUrl}
-          <!-- Capture URL at render time — photo may change before onintroend fires -->
-          {@const capturedUrl = photo.displayUrl}
+        <!-- Layer 2: currentBestUrl fades in when it differs from what's rendered -->
+        {#if currentBestUrl && currentBestUrl !== renderedUrl}
+          {@const capturedUrl = currentBestUrl}
           {#key capturedUrl}
             <img
               src={capturedUrl}
               alt={photo.filename}
               class="main-img main-img--top"
               in:fade={{ duration: 300 }}
-              onintroend={() => { renderedUrl = capturedUrl; }}
-              onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
-            />
-          {/key}
-        {:else if photo.thumbnailUrl && !latestMode && photo.thumbnailUrl !== renderedUrl && !photo.displayUrl}
-          {@const capturedUrl = photo.thumbnailUrl}
-          {#key capturedUrl}
-            <img
-              src={capturedUrl}
-              alt={photo.filename}
-              class="main-img main-img--top"
-              in:fade={{ duration: 200 }}
               onintroend={() => { renderedUrl = capturedUrl; }}
               onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
             />
