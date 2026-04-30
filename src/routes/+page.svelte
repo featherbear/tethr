@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { browser } from '$app/environment';
   import { cameraStore } from '$lib/stores/camera.svelte';
   import { photosStore } from '$lib/stores/photos.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
@@ -12,7 +13,7 @@
   let fetchingFullres = false;
 
   function connect() {
-    if (eventSource) return;
+    if (!browser || eventSource) return;
     cameraStore.setStatus('connecting');
 
     eventSource = new EventSource('/api/events');
@@ -45,6 +46,7 @@
   }
 
   async function disconnect() {
+    if (!browser) return;
     // Tell the server to immediately release the camera's polling slot.
     // Fire-and-forget with a short timeout — don't block the UI.
     fetch('/api/events', { method: 'DELETE', signal: AbortSignal.timeout(5_000) }).catch(() => {});
