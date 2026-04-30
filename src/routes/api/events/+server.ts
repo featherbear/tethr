@@ -5,6 +5,19 @@ import { cameraFetch } from '$lib/server/camera';
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
 
+const POLL_PATH     = '/ccapi/ver110/event/polling';
+const MONITOR_PATH  = '/ccapi/ver100/event/monitoring';
+
+/** Reset any existing camera polling session before starting a new one. */
+async function resetPollingSession(): Promise<void> {
+  // The camera allows only one poller at a time; DELETE clears any stuck session.
+  // Ignore errors — 503 "Not started" is expected if none is active.
+  await Promise.allSettled([
+    cameraFetch(POLL_PATH,    { method: 'DELETE', signal: AbortSignal.timeout(5_000) }),
+    cameraFetch(MONITOR_PATH, { method: 'DELETE', signal: AbortSignal.timeout(5_000) }),
+  ]);
+}
+
 export const GET: RequestHandler = ({ request }) => {
   let closed = false;
   request.signal.addEventListener('abort', () => { closed = true; });
@@ -17,14 +30,16 @@ export const GET: RequestHandler = ({ request }) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       }
 
-      // Notify client we're connected
       send('status', { status: 'connecting' });
+
+      // Clear any stuck session from a previous connection
+      await resetPollingSession();
 
       let backoff = MIN_BACKOFF_MS;
 
       while (!closed) {
         try {
-          const res = await cameraFetch('/ccapi/ver110/event/polling', {
+          const res = await cameraFetch(POLL_PATH, {
             signal: AbortSignal.timeout(60_000),
           });
 
@@ -37,9 +52,15 @@ export const GET: RequestHandler = ({ request }) => {
 
           if (closed) break;
 
+          // Empty {} means "no event, poll again immediately"
+          if (!data.kind) {
+            send('status', { status: 'live' });
+            continue;
+          }
+
           if (data.kind === 'shotnotification') {
             const value = data.value;
-            // ver110 may return { path } instead of { dirname, filename }
+            // ver110 returns { path: "/ccapi/ver120/contents/card1/.../file.CR3" }
             // Normalise to { dirname, filename } for the frontend
             if (value.path && !value.filename) {
               const parts = (value.path as string).split('/');
@@ -50,18 +71,22 @@ export const GET: RequestHandler = ({ request }) => {
               send('shot', value);
             }
           }
-          // Ignore other event kinds for now
 
           send('status', { status: 'live' });
 
         } catch (e) {
           if (closed) break;
           send('status', { status: 'reconnecting', error: String(e) });
-          // Exponential backoff
+          // Exponential backoff before retrying
           await new Promise(r => setTimeout(r, backoff));
           backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+          // Reset session on reconnect — camera may have a stuck session
+          if (!closed) await resetPollingSession();
         }
       }
+
+      // Clean up: release the camera's polling slot on disconnect
+      await resetPollingSession().catch(() => {});
 
       try { controller.close(); } catch { /* already closed */ }
     },

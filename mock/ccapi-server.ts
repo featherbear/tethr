@@ -92,9 +92,20 @@ Bun.serve({
 
     // Long-poll event endpoint (ver110)
     if (path === '/ccapi/ver110/event/polling') {
+      if (req.method === 'DELETE') {
+        return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+      }
       return new Promise<Response>((resolve) => {
         pendingPollers.push({ resolve });
       });
+    }
+
+    // Event monitoring session reset (ver100)
+    if (path === '/ccapi/ver100/event/monitoring') {
+      if (req.method === 'DELETE') {
+        return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
     }
 
     return new Response('Not Found', { status: 404 });
