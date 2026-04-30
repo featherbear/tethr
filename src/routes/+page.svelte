@@ -9,7 +9,6 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
 
   let eventSource: EventSource | null = null;
-  let infoInterval: ReturnType<typeof setInterval> | null = null;
   // Queue of photo IDs waiting for full-res fetch, newest first
   let fullresQueue: string[] = [];
   let fetchingFullres = false;
@@ -37,16 +36,26 @@
       const data = JSON.parse(e.data) as { status: string; error?: string };
       if (data.status === 'live') {
         cameraStore.setStatus('live');
-        // Fetch camera details on first live, then start periodic refresh
-        fetchCameraInfo();
-        if (!infoInterval) {
-          infoInterval = setInterval(fetchCameraInfo, 30_000);
-        }
+        // Fetch full camera details once on connect (storage, serial, firmware)
+        if (!cameraInfoStore.info) fetchCameraInfo();
       } else if (data.status === 'reconnecting') {
         cameraStore.setStatus('reconnecting', data.error);
       } else if (data.status === 'connecting') {
         cameraStore.setStatus('connecting');
       }
+    });
+
+    eventSource.addEventListener('info-update', (e) => {
+      const update = JSON.parse(e.data) as {
+        battery?: { level: string; quality: string; name: string };
+        recordable?: { recordableshots: number; remainingtime: null };
+      };
+      const current = cameraInfoStore.info;
+      if (!current) return;
+      cameraInfoStore.set({
+        ...current,
+        battery: update.battery ?? current.battery,
+      });
     });
 
     eventSource.addEventListener('shot', (e) => {
@@ -71,7 +80,6 @@
     fetch('/api/events', { method: 'DELETE', signal: AbortSignal.timeout(5_000) }).catch(() => {});
     eventSource?.close();
     eventSource = null;
-    if (infoInterval) { clearInterval(infoInterval); infoInterval = null; }
     cameraStore.setStatus('idle');
     cameraInfoStore.set(null);
     fullresQueue = [];

@@ -100,6 +100,8 @@ async function ensureMonitorRunning() {
         for (const json of chunks) {
           try {
             const data = JSON.parse(json);
+
+            // New photo(s) added to card
             if (data.addedcontents && Array.isArray(data.addedcontents)) {
               for (const path of data.addedcontents as string[]) {
                 const parts = path.split('/');
@@ -108,6 +110,15 @@ async function ensureMonitorRunning() {
                 broadcast('shot', { dirname, filename });
               }
             }
+
+            // Camera info fields — push relevant updates to clients
+            const infoUpdate: Record<string, unknown> = {};
+            if (data.battery)    infoUpdate.battery  = data.battery;
+            if (data.recordable) infoUpdate.recordable = data.recordable;
+            if (Object.keys(infoUpdate).length > 0) {
+              broadcast('info-update', infoUpdate);
+            }
+
           } catch { /* malformed frame — skip */ }
         }
       }
