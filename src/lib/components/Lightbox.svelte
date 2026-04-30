@@ -35,14 +35,10 @@
     photo?.variants.map(v => v.split('.').pop()?.toUpperCase()).join(' + ') ?? ''
   );
 
-  // In latest mode, always show the newest photo (index 0)
+  // When new photos arrive, jump to newest only if latest mode is active
   $effect(() => {
-    if (latestMode) index = 0;
-  });
-
-  // When new photos arrive in latest mode, jump to newest
-  $effect(() => {
-    if (latestMode && photos.length > 0) index = 0;
+    const _len = photos.length; // track reactively
+    if (latestMode && _len > 0) index = 0;
   });
 
   function prev() {
@@ -309,10 +305,10 @@
     white-space: nowrap;
   }
   .latest-btn.active {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #818cf8;
   }
   .latest-btn:hover { border-color: rgba(255,255,255,0.2); color: #e5e7eb; }
-  .latest-btn.active:hover { border-color: rgba(239, 68, 68, 0.6); }
+  .latest-btn.active:hover { border-color: rgba(99, 102, 241, 0.8); color: #a5b4fc; }
 </style>
