@@ -73,6 +73,18 @@
 - **Fix:** Move any shared logic into `src/lib/server/` and import from there
 - **Prevention:** Never export non-HTTP named functions from `+server.ts` files; all reusable server utilities live in `$lib/server/`
 
+### Vite HMR resets module-level state — use globalThis for server singletons
+- **Symptom:** Monitor loop restarts on every file save in dev; SSE stream floods with `connecting → live → connecting`
+- **Root cause:** Vite HMR re-executes server modules on save, resetting all module-level `let` variables. The monitor loop's AbortController, status, and subscribers are wiped, triggering a restart.
+- **Fix:** Store all persistent server state on `globalThis` with an init-once guard: `if (!(key in globalThis)) globalThis[key] = init()`
+- **Prevention:** Any server singleton (monitor loop, camera connection, shared state) must use `globalThis` keys, not module-level variables. Also guard `startMonitor()` in `hooks.server.ts` with a status check so HMR re-execution is a no-op.
+
+### SSE duplicate events from subscribe() sending initial state on reconnect
+- **Symptom:** Browser DevTools EventStream shows duplicate `settings` events on page load or EventSource reconnect
+- **Root cause:** `subscribe()` was sending current state to every new subscriber immediately. Browser `EventSource` auto-reconnects on drop, triggering another subscribe + initial burst.
+- **Fix:** Serve initial state via a dedicated REST endpoint (`/api/state`) on page load. `subscribe()` should only send status (needed for immediate render), not settings. SSE events become pure delta updates.
+- **Prevention:** Keep SSE as a delta-only channel. Never use `subscribe()` to replay full state — use REST for snapshots, SSE for changes.
+
 ### Tauri svelte-ts scaffold defaults to adapter-static + SPA mode
 - **Symptom:** Server routes (`+server.ts`) don't work; SSR is disabled
 - **Root cause:** `pnpm create tauri-app` uses `adapter-static` with `ssr = false` in `+layout.ts` by default (Tauri docs recommend SPA mode for static builds)
