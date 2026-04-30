@@ -44,7 +44,11 @@
     };
   }
 
-  function disconnect() {
+  async function disconnect() {
+    // Tell the server to immediately release the camera's polling slot.
+    // Fire-and-forget with a short timeout — don't block the UI.
+    fetch('/api/events', { method: 'DELETE', signal: AbortSignal.timeout(5_000) }).catch(() => {});
+    // Close the SSE stream (triggers server-side abort → closed = true)
     eventSource?.close();
     eventSource = null;
     cameraStore.setStatus('idle');

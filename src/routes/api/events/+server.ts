@@ -18,6 +18,12 @@ async function resetPollingSession(): Promise<void> {
   ]);
 }
 
+/** Called by the frontend on disconnect to immediately release the camera's polling slot. */
+export const DELETE: RequestHandler = async () => {
+  await resetPollingSession().catch(() => {});
+  return new Response(null, { status: 204 });
+};
+
 export const GET: RequestHandler = ({ request }) => {
   let closed = false;
   request.signal.addEventListener('abort', () => { closed = true; });
