@@ -52,8 +52,8 @@
   }
 
   async function fetchThumbnail(id: string, dirname: string, filename: string) {
-    // dirname looks like /ccapi/ver100/contents/storage1/card1/100CANON
-    // We need to pass it as the [...path] param, stripping the leading /
+    // dirname looks like /ccapi/ver120/contents/card1/100EOSR6
+    // Strip leading / so it becomes the [...path] param for our API routes
     const camPath = `${dirname}/${filename}`.replace(/^\//, '');
     try {
       const url = `/api/thumbnail/${camPath}`;

@@ -3,7 +3,7 @@ import { json, error } from '@sveltejs/kit';
 import { cameraFetch } from '$lib/server/camera';
 
 export const GET: RequestHandler = async ({ url }) => {
-  const path = url.searchParams.get('path') ?? '/ccapi/ver100/contents/storage1/card1';
+  const path = url.searchParams.get('path') ?? '/ccapi/ver120/contents/card1';
 
   try {
     const res = await cameraFetch(path, { signal: AbortSignal.timeout(10_000) });

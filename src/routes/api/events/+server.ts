@@ -24,7 +24,7 @@ export const GET: RequestHandler = ({ request }) => {
 
       while (!closed) {
         try {
-          const res = await cameraFetch('/ccapi/ver100/event/polling', {
+          const res = await cameraFetch('/ccapi/ver110/event/polling', {
             signal: AbortSignal.timeout(60_000),
           });
 
@@ -38,7 +38,17 @@ export const GET: RequestHandler = ({ request }) => {
           if (closed) break;
 
           if (data.kind === 'shotnotification') {
-            send('shot', data.value);
+            const value = data.value;
+            // ver110 may return { path } instead of { dirname, filename }
+            // Normalise to { dirname, filename } for the frontend
+            if (value.path && !value.filename) {
+              const parts = (value.path as string).split('/');
+              const filename = parts.pop()!;
+              const dirname = parts.join('/');
+              send('shot', { dirname, filename });
+            } else {
+              send('shot', value);
+            }
           }
           // Ignore other event kinds for now
 

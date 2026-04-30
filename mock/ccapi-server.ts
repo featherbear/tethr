@@ -20,12 +20,11 @@ setInterval(() => {
 function fireShot() {
   shotCounter++;
   const filename = `IMG_${String(shotCounter).padStart(4, '0')}.JPG`;
+  // ver110 polling returns { path } for shot notifications
   const event = {
     kind: 'shotnotification',
     value: {
-      storagegen: 'storage1',
-      dirname: '/ccapi/ver100/contents/storage1/card1/100CANON',
-      filename,
+      path: `/ccapi/ver120/contents/card1/100MOCK/${filename}`,
     },
   };
   console.log(`[mock] Shot fired: ${filename} (${pendingPollers.length} pollers waiting)`);
@@ -56,38 +55,43 @@ Bun.serve({
 
     console.log(`[mock] ${req.method} ${path}${url.search}`);
 
+    // CCAPI capabilities
+    if (path === '/ccapi') {
+      return Response.json({ ver100: [], ver110: [], ver120: [] });
+    }
+
     // List storage root
-    if (path === '/ccapi/ver100/contents/storage1/card1') {
+    if (path === '/ccapi/ver120/contents' || path === '/ccapi/ver120/contents/card1') {
       return Response.json({
-        path: ['/ccapi/ver100/contents/storage1/card1/100CANON'],
+        path: ['/ccapi/ver120/contents/card1/100MOCK'],
       });
     }
 
     // List folder
-    if (path === '/ccapi/ver100/contents/storage1/card1/100CANON') {
+    if (path === '/ccapi/ver120/contents/card1/100MOCK') {
       const files = Array.from({ length: shotCounter }, (_, i) => {
         const n = String(i + 1).padStart(4, '0');
-        return `/ccapi/ver100/contents/storage1/card1/100CANON/IMG_${n}.JPG`;
+        return `/ccapi/ver120/contents/card1/100MOCK/IMG_${n}.JPG`;
       });
       return Response.json({ path: files });
     }
 
-    // Thumbnail or original
-    if (path.startsWith('/ccapi/ver100/contents/') && path.endsWith('.JPG')) {
+    // Thumbnail or original (ver120 file paths)
+    if (path.startsWith('/ccapi/ver120/contents/') && (path.endsWith('.JPG') || path.endsWith('.CR3'))) {
       const kind = url.searchParams.get('kind') ?? 'thumbnail';
-      if (kind === 'thumbnail') {
+      if (kind === 'thumbnail' || kind === 'original') {
         return new Response(thumbnailBuffer, {
           headers: { 'Content-Type': 'image/jpeg' },
         });
       }
-      // original — return same tiny image for mock purposes
-      return new Response(thumbnailBuffer, {
-        headers: { 'Content-Type': 'image/jpeg' },
+      return new Response(JSON.stringify({ message: 'invalid kind' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Long-poll event endpoint
-    if (path === '/ccapi/ver100/event/polling') {
+    // Long-poll event endpoint (ver110)
+    if (path === '/ccapi/ver110/event/polling') {
       return new Promise<Response>((resolve) => {
         pendingPollers.push({ resolve });
       });
