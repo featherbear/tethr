@@ -141,10 +141,17 @@
         if (fetchQueue[i].type === 'display') fetchQueue.splice(i, 1);
       }
       // If lightbox is open, jump to new photo and fetch display at urgent priority
-      // (P.DisplayUrgent=1 runs after latest thumbnail but before older thumbnails)
+      // Demote any previously urgent display jobs — only the latest is urgent
       if (lightboxIndex !== null) {
+        for (const job of fetchQueue) {
+          if (job.type === 'display' && job.priority === P.DisplayUrgent) {
+            job.priority = P.DisplayNow;
+          }
+        }
         lightboxIndex = 0;
         enqueueDisplay(id, P.DisplayUrgent);
+        // Re-sort after demotion
+        fetchQueue.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : b.seq - a.seq);
       }
     });
 
