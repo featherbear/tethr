@@ -126,8 +126,15 @@
       {#key photo.id}
         <div in:fly={{ y: 20, duration: 200 }} class="image-wrap">
           {#if photo.displayUrl}
+            <!-- Display quality ready — always show it -->
             <img src={photo.displayUrl} alt={photo.filename} class="main-img" transition:fade={{ duration: 250 }} />
+          {:else if latestMode && photo.displayProgress !== null}
+            <!-- Latest mode + display fetch in progress — skip thumbnail, show shimmer only -->
+            <div class="placeholder placeholder--shimmer">
+              <div class="shimmer-bar"></div>
+            </div>
           {:else if photo.thumbnailUrl}
+            <!-- Not latest mode, or no display fetch scheduled — show thumbnail -->
             <img src={photo.thumbnailUrl} alt={photo.filename} class="main-img main-img--thumb" />
           {:else}
             <div class="placeholder">
@@ -283,6 +290,35 @@
 
   .main-img--thumb {
     filter: blur(0);  /* no blur — thumbnail is already decent quality */
+  }
+
+  .placeholder--shimmer {
+    width: min(80vw, 1200px);
+    aspect-ratio: 3/2;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #1a1a2e;
+    position: relative;
+  }
+
+  .shimmer-bar {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(129, 140, 248, 0.08) 40%,
+      rgba(129, 140, 248, 0.15) 50%,
+      rgba(129, 140, 248, 0.08) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   /* Progress bar at bottom of image area */
