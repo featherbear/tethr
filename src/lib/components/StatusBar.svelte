@@ -8,9 +8,10 @@
     errorMessage?: string | null;
     shotCount?: number;
     cameraInfo?: CameraInfo | null;
+    onsettings?: () => void;
   }
 
-  const { status, errorMessage = null, shotCount = 0, cameraInfo = null }: Props = $props();
+  const { status, errorMessage = null, shotCount = 0, cameraInfo = null, onsettings }: Props = $props();
 
   const statusConfig: Record<ConnectionStatus, { label: string; color: string }> = {
     idle:         { label: 'Idle',         color: '#6b7280' },
@@ -58,10 +59,15 @@
     {/if}
   </div>
 
-  <!-- Right: shot counter -->
-  {#if shotCount > 0}
-    <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
-  {/if}
+  <!-- Right: shot counter + settings -->
+  <div class="right">
+    {#if shotCount > 0}
+      <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
+    {/if}
+    <button class="settings-btn" onclick={onsettings} title="Camera settings" aria-label="Camera settings">
+      ⚙
+    </button>
+  </div>
 </div>
 
 <style>
@@ -154,8 +160,31 @@
     white-space: nowrap;
   }
 
-  .shot-count {
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     flex-shrink: 0;
+  }
+
+  .shot-count {
     color: #6b7280;
+  }
+
+  .settings-btn {
+    background: none;
+    border: none;
+    color: #4b5563;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.1rem 0.25rem;
+    line-height: 1;
+    transition: color 0.15s;
+    border-radius: 4px;
+  }
+
+  .settings-btn:hover {
+    color: #9ca3af;
+    background: #1f1f1f;
   }
 </style>
