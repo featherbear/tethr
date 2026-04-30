@@ -10,7 +10,7 @@
  *   - subscribe()    — SSE clients register to receive events
  */
 
-import { cameraFetch, extractFrames } from './camera';
+import { cameraFetch, cameraFetchRaw, extractFrames } from './camera';
 
 // ---------------------------------------------------------------------------
 // State
@@ -116,7 +116,9 @@ async function runLoop(signal: AbortSignal) {
     setStatus('connecting');
 
     try {
-      const res = await cameraFetch(MONITOR_PATH);
+      // Use cameraFetchRaw — the monitoring stream must NOT go through the serial queue
+      // as it is a persistent connection that would block all other camera requests
+      const res = await cameraFetchRaw(MONITOR_PATH);
 
       if (signal.aborted) break;
 

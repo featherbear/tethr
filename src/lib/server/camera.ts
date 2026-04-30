@@ -46,17 +46,50 @@ export function setCameraConfig(ip: string, port: number, https: boolean): strin
 }
 
 // ---------------------------------------------------------------------------
-// HTTP fetch — uses undici Agent to skip TLS verification for self-signed cert
+// HTTP fetch — serialised queue + undici Agent for self-signed TLS cert
+//
+// CCAPI is single-threaded: concurrent requests cause HTTP 503.
+// All camera fetches are queued here server-side so no two overlap.
+// Streaming requests (monitoring stream) bypass the queue via cameraFetchRaw.
 // ---------------------------------------------------------------------------
 
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
-export function cameraFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const url = `${getCameraBaseUrl()}${path}`;
+function rawFetch(url: string, init: RequestInit): Promise<Response> {
   if (_config.https) {
     return undiciFetch(url, { ...(init as object), dispatcher: insecureAgent }) as unknown as Promise<Response>;
   }
   return fetch(url, init);
+}
+
+// Server-side serial queue — one CCAPI request at a time
+// Uses globalThis so it survives Vite HMR module reloads
+const g = globalThis as Record<string, unknown>;
+if (!g.__camera_queue) g.__camera_queue = Promise.resolve();
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = g.__camera_queue as Promise<unknown>;
+  const next = prev.then(fn, fn); // always continue even if previous failed
+  g.__camera_queue = next.then(() => {}, () => {}); // detach to avoid chain growth
+  return next as Promise<T>;
+}
+
+/**
+ * Make a serialised request to the camera.
+ * All calls go through a server-side queue — CCAPI is single-threaded.
+ */
+export function cameraFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const url = `${getCameraBaseUrl()}${path}`;
+  return enqueue(() => rawFetch(url, init));
+}
+
+/**
+ * Make a direct (non-queued) request to the camera.
+ * Use ONLY for the persistent monitoring stream — it must not block the queue.
+ */
+export function cameraFetchRaw(path: string, init: RequestInit = {}): Promise<Response> {
+  const url = `${getCameraBaseUrl()}${path}`;
+  return rawFetch(url, init);
 }
 
 // ---------------------------------------------------------------------------
