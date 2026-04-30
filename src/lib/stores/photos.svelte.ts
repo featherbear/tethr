@@ -105,7 +105,7 @@ export const photosStore = (() => {
     );
   }
 
-  function setDisplayProgress(id: string, progress: number) {
+  function setDisplayProgress(id: string, progress: number | null) {
     photos = photos.map(p =>
       p.id === id ? { ...p, displayProgress: progress } : p
     );

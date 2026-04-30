@@ -220,7 +220,7 @@
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
       if (!res.ok || !res.body) {
-        photosStore.setDisplayProgress(id, 0);
+        photosStore.setDisplayProgress(id, null); // reset so future fetches aren't blocked
         // Retry on transient errors
         if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
           const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
@@ -248,7 +248,7 @@
       const blob = new Blob(chunks, { type: 'image/jpeg' });
       const url = URL.createObjectURL(blob);
       photosStore.setDisplay(id, url);
-    } catch { photosStore.setDisplayProgress(id, 0); }
+    } catch { photosStore.setDisplayProgress(id, null); }
   }
 
   // ---------------------------------------------------------------------------

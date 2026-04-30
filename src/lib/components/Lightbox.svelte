@@ -63,7 +63,11 @@
       processedId = id;
       fadingUrl = null;
       shimmer = false; // shimmer only shows when a fetch is actually in progress
-      // Request display-quality image if not already loading
+    }
+
+    // Always ensure display fetch is requested for current photo
+    // (covers: initial mount, photo change, navigate)
+    if (!photo.displayUrl && photo.displayProgress === null) {
       onfetchdisplay?.(id);
     }
 
