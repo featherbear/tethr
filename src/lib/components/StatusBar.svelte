@@ -1,16 +1,18 @@
 <script lang="ts">
   import type { ConnectionStatus } from '$lib/stores/camera.svelte';
   import type { CameraInfo } from '$lib/stores/cameraInfo.svelte';
+  import type { ShootingSettings } from '$lib/stores/photos.svelte';
 
   interface Props {
     status: ConnectionStatus;
     errorMessage?: string | null;
     shotCount?: number;
     cameraInfo?: CameraInfo | null;
+    shootingSettings?: ShootingSettings | null;
     onsettings?: () => void;
   }
 
-  const { status, errorMessage = null, shotCount = 0, cameraInfo = null, onsettings }: Props = $props();
+  const { status, errorMessage = null, shotCount = 0, cameraInfo = null, shootingSettings = null, onsettings }: Props = $props();
 
   const statusConfig: Record<ConnectionStatus, { label: string; color: string }> = {
     idle:         { label: 'Idle',         color: '#6b7280' },
@@ -77,6 +79,15 @@
       {#if cameraInfo.lens}
         <span class="sep">·</span>
         <span class="lens">{cameraInfo.lens}</span>
+      {/if}
+
+      {#if shootingSettings?.av || shootingSettings?.tv || shootingSettings?.iso}
+        <span class="sep">·</span>
+        <div class="shooting">
+          {#if shootingSettings.av}<span class="setting">{shootingSettings.av}</span>{/if}
+          {#if shootingSettings.tv}<span class="setting">{shootingSettings.tv}</span>{/if}
+          {#if shootingSettings.iso}<span class="setting">ISO {shootingSettings.iso}</span>{/if}
+        </div>
       {/if}
 
     {:else}
@@ -209,6 +220,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  /* Live shooting settings */
+  .shooting {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .setting {
+    color: #e5e7eb;
+    font-weight: 500;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Right side */

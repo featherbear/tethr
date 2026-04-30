@@ -1,15 +1,16 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
   import { untrack } from 'svelte';
-  import type { Photo } from '$lib/stores/photos.svelte';
+  import type { Photo, ShootingSettings } from '$lib/stores/photos.svelte';
 
   interface Props {
     photos: Photo[];
     initialIndex: number;
+    liveSettings?: ShootingSettings | null;
     onclose: () => void;
   }
 
-  const { photos, initialIndex, onclose }: Props = $props();
+  const { photos, initialIndex, liveSettings = null, onclose }: Props = $props();
 
   let latestMode = $state(false);
   let isFullscreen = $state(false);
@@ -40,6 +41,9 @@
   const variantLabel = $derived(
     photo?.variants.map(v => v.split('.').pop()?.toUpperCase()).join(' + ') ?? ''
   );
+
+  // Show photo settings or fall back to live settings if photo has none
+  const displaySettings = $derived(photo?.settings ?? liveSettings);
 
   function prev() {
     if (latestMode) return;
@@ -129,6 +133,12 @@
         {/if}
         <span class="sep">·</span>
         <span class="time">{timeLabel}</span>
+        {#if displaySettings?.av || displaySettings?.tv || displaySettings?.iso}
+          <span class="sep">·</span>
+          {#if displaySettings.av}<span class="exif">{displaySettings.av}</span>{/if}
+          {#if displaySettings.tv}<span class="exif">{displaySettings.tv}</span>{/if}
+          {#if displaySettings.iso}<span class="exif">ISO {displaySettings.iso}</span>{/if}
+        {/if}
         <span class="sep">·</span>
         <span class="counter">{photos.length - index} / {photos.length}</span>
       </div>
@@ -293,6 +303,14 @@
 
   .sep { color: #374151; flex-shrink: 0; }
   .time, .counter { white-space: nowrap; flex-shrink: 0; }
+
+  .exif {
+    white-space: nowrap;
+    flex-shrink: 0;
+    color: #e5e7eb;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
 
   .latest-btn {
     background: rgba(255,255,255,0.05);
