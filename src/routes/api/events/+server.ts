@@ -65,16 +65,23 @@ async function ensureMonitorRunning() {
   if (monitorRunning) return;
   monitorRunning = true;
 
+  // Reset once on startup to clear any leftover session
+  await resetSession();
+
   let backoff = MIN_BACKOFF_MS;
   let sentLive = false;
 
   while (subscribers.size > 0) {
     try {
-      await resetSession();
-
       const res = await cameraFetch(MONITOR_PATH, {
         signal: AbortSignal.timeout(90_000),
       });
+
+      // 503 means a session is already active — reset and retry
+      if (res.status === 503) {
+        await resetSession();
+        continue;
+      }
 
       if (!res.ok) throw new Error(`Camera responded with ${res.status}`);
       if (!res.body) throw new Error('No response body');
@@ -130,6 +137,7 @@ async function ensureMonitorRunning() {
       broadcast('status', { status: 'reconnecting', error: String(e) });
       await new Promise(r => setTimeout(r, backoff));
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+      // Don't reset here — 503 handling inside the loop covers stuck sessions
     }
   }
 
