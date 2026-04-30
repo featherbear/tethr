@@ -74,19 +74,6 @@
       <span class="model">{cameraInfo.productname}</span>
       <span class="serial">{cameraInfo.serialnumber}</span>
 
-      <span class="sep">·</span>
-
-      <!-- Graphical battery -->
-      <div class="battery-wrap" title="Battery: {cameraInfo.battery.level}">
-        <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
-            fill="none" stroke="currentColor" stroke-width="1"/>
-          <rect x="20.5" y="3.5" width="3" height="5" rx="1" ry="1" fill="currentColor"/>
-          <rect x="2" y="2" width="{fill * 16}" height="8" rx="1" ry="1"
-            fill={bColor}/>
-        </svg>
-      </div>
-
       {#if cameraInfo.lens}
         <span class="sep">·</span>
         <span class="lens">{cameraInfo.lens}</span>
@@ -100,8 +87,19 @@
     {/if}
   </div>
 
-  <!-- Right: shot count + fullscreen + settings -->
+  <!-- Right: battery + shot count + fullscreen + settings -->
   <div class="right">
+    {#if cameraInfo}
+      <div class="battery-wrap" title="Battery: {cameraInfo.battery.level}">
+        <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
+            fill="none" stroke="currentColor" stroke-width="1"/>
+          <rect x="20.5" y="3.5" width="3" height="5" rx="1" ry="1" fill="currentColor"/>
+          <rect x="2" y="2" width="{fill * 16}" height="8" rx="1" ry="1"
+            fill={bColor}/>
+        </svg>
+      </div>
+    {/if}
     {#if shotCount > 0}
       <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
     {/if}
