@@ -6,7 +6,7 @@
 
 ## Last Updated
 
-2026-05-01 — All milestones M0–M5 built. `pnpm check` and `pnpm build` both pass clean.
+2026-05-01 — All milestones built and verified against live R6 Mark II. Real camera connected over HTTPS.
 
 ---
 
