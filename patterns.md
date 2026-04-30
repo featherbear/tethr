@@ -19,6 +19,12 @@
 
 ## Patterns
 
+### CCAPI serial queue must be server-side, not client-side
+- **Symptom:** 502/503 errors during burst shooting even with a client-side serial queue
+- **Root cause:** Multiple SvelteKit API routes (`/api/thumbnail`, `/api/fullres`, `/api/camera/info`) can be called concurrently by the browser or SSE events. Client-side serialisation only controls client→server requests, not server→camera requests.
+- **Fix:** Add a server-side promise-chain queue in `cameraFetch()`. Use `globalThis` to survive Vite HMR reloads. Persistent streams (monitoring) must bypass the queue via a separate `cameraFetchRaw()` — otherwise the stream would block all other requests.
+- **Prevention:** Any app talking to a single-threaded API must serialise at the server layer, not the client layer. The client has no visibility into other concurrent server-side requests.
+
 ### CCAPI is single-threaded — concurrent requests cause 503
 - **Symptom:** Second simultaneous fetch to camera returns HTTP 503
 - **Root cause:** CCAPI processes one HTTP request at a time. Concurrent fetches (e.g. thumbnail for CR3 and JPG arriving together) will 503 on the second request.
