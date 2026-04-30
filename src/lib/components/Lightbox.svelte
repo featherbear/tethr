@@ -10,14 +10,18 @@
 
   const { photos, initialIndex, onclose }: Props = $props();
 
-  let index = $state(0);
   let latestMode = $state(false);
   let isFullscreen = $state(false);
 
-  // Initialise index from prop once on mount
-  let _inited = false;
-  $effect.pre(() => {
-    if (!_inited) { index = initialIndex; _inited = true; }
+  // Track by photo ID so array prepends don't silently change the viewed photo
+  let currentId = $state(photos[initialIndex]?.id ?? null);
+
+  // Derive the current index from the tracked ID (or 0 in latest mode)
+  const index = $derived.by(() => {
+    if (latestMode) return 0;
+    if (currentId === null) return 0;
+    const i = photos.findIndex(p => p.id === currentId);
+    return i === -1 ? 0 : i;
   });
 
   const photo = $derived(photos[index] ?? null);
@@ -35,18 +39,16 @@
     photo?.variants.map(v => v.split('.').pop()?.toUpperCase()).join(' + ') ?? ''
   );
 
-  // When new photos arrive, jump to newest only if latest mode is active
-  $effect(() => {
-    const _len = photos.length; // track reactively
-    if (latestMode && _len > 0) index = 0;
-  });
-
   function prev() {
-    if (!latestMode) index = Math.min(index + 1, photos.length - 1);
+    if (latestMode) return;
+    const newIndex = Math.min(index + 1, photos.length - 1);
+    currentId = photos[newIndex]?.id ?? currentId;
   }
 
   function next() {
-    if (!latestMode) index = Math.max(index - 1, 0);
+    if (latestMode) return;
+    const newIndex = Math.max(index - 1, 0);
+    currentId = photos[newIndex]?.id ?? currentId;
   }
 
   function toggleFullscreen() {
