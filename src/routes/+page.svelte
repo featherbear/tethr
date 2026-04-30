@@ -60,8 +60,13 @@
       const parts = path.split('/');
       const filename = parts.pop()!;
       const dirname = parts.join('/');
-      const id = photosStore.addPlaceholder(dirname, filename);
-      fetchThumbnail(id, dirname, filename);
+      const id = photosStore.addOrMerge(dirname, filename);
+      // Only fetch thumbnail for JPG — RAW thumbnails use same endpoint
+      // but we prefer the JPG variant if available (fetched when JPG arrives)
+      const isRaw = /\.(cr3|cr2|raw|nef|arw|orf|raf)$/i.test(filename);
+      if (!isRaw || !photosStore.photos.find(p => p.id === id)?.thumbnailUrl) {
+        fetchThumbnail(id, dirname, filename);
+      }
     });
 
     eventSource.onerror = () => {

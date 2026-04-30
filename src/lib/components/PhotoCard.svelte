@@ -12,6 +12,11 @@
   const timeLabel = $derived(
     photo.capturedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   );
+
+  // Show variant count if more than one file for this shot
+  const variantLabel = $derived(
+    photo.variants.length > 1 ? photo.variants.map(v => v.split('.').pop()?.toUpperCase()).join('+') : null
+  );
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -58,7 +63,14 @@
 
   <div class="meta">
     <span class="filename">{photo.filename}</span>
-    <span class="time">{timeLabel}</span>
+    <div class="meta-right">
+      {#if variantLabel}
+        <span class="variant-badge">{variantLabel}</span>
+      {:else if photo.hasRaw}
+        <span class="variant-badge">RAW</span>
+      {/if}
+      <span class="time">{timeLabel}</span>
+    </div>
   </div>
 </div>
 
@@ -153,6 +165,7 @@
     padding: 0.5rem 0.75rem;
     font-size: 0.7rem;
     color: #6b7280;
+    gap: 0.25rem;
   }
 
   .filename {
@@ -161,7 +174,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 60%;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .meta-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .variant-badge {
+    background: #1e293b;
+    color: #818cf8;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    border: 1px solid #334155;
   }
 
   .time {

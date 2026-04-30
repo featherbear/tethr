@@ -1,9 +1,27 @@
 export type PhotoState = 'loading' | 'thumbnail' | 'fullres';
 
+/** File extensions we consider "RAW" formats */
+const RAW_EXTS = new Set(['.cr3', '.cr2', '.raw', '.nef', '.arw', '.orf', '.raf']);
+
+function stem(filename: string): string {
+  const dot = filename.lastIndexOf('.');
+  return dot === -1 ? filename : filename.slice(0, dot);
+}
+
+function ext(filename: string): string {
+  const dot = filename.lastIndexOf('.');
+  return dot === -1 ? '' : filename.slice(dot).toLowerCase();
+}
+
 export interface Photo {
-  id: string;         // dirname/filename
+  /** Canonical ID — dirname/stem (without extension) so RAW+JPG share one card */
+  id: string;
   dirname: string;
+  /** Display filename — prefer JPG; falls back to whatever arrived first */
   filename: string;
+  /** All filenames for this shot (e.g. ["IMG_0001.JPG", "IMG_0001.CR3"]) */
+  variants: string[];
+  hasRaw: boolean;
   thumbnailUrl: string | null;
   fullresUrl: string | null;
   state: PhotoState;
@@ -13,20 +31,44 @@ export interface Photo {
 export const photosStore = (() => {
   let photos = $state<Photo[]>([]);
 
-  function addPlaceholder(dirname: string, filename: string): string {
-    const id = `${dirname}/${filename}`;
-    // Avoid duplicates
-    if (photos.some(p => p.id === id)) return id;
+  /**
+   * Add or update a photo card for the given dirname/filename.
+   * If a card with the same stem already exists, add the filename as a variant.
+   * Returns the card ID (dirname/stem).
+   */
+  function addOrMerge(dirname: string, filename: string): string {
+    const cardId = `${dirname}/${stem(filename)}`;
+    const existing = photos.find(p => p.id === cardId);
+
+    if (existing) {
+      // Already have a card — add this variant if not already tracked
+      if (!existing.variants.includes(filename)) {
+        const isJpg = !RAW_EXTS.has(ext(filename));
+        photos = photos.map(p => p.id !== cardId ? p : {
+          ...p,
+          variants: [...p.variants, filename],
+          // Prefer JPG as display filename
+          filename: isJpg ? filename : p.filename,
+          hasRaw: p.hasRaw || RAW_EXTS.has(ext(filename)),
+        });
+      }
+      return cardId;
+    }
+
+    // New card
     photos = [{
-      id,
+      id: cardId,
       dirname,
       filename,
+      variants: [filename],
+      hasRaw: RAW_EXTS.has(ext(filename)),
       thumbnailUrl: null,
       fullresUrl: null,
       state: 'loading',
       capturedAt: new Date(),
     }, ...photos];
-    return id;
+
+    return cardId;
   }
 
   function setThumbnail(id: string, url: string) {
@@ -41,13 +83,11 @@ export const photosStore = (() => {
     );
   }
 
-  function clear() {
-    photos = [];
-  }
+  function clear() { photos = []; }
 
   return {
     get photos() { return photos; },
-    addPlaceholder,
+    addOrMerge,
     setThumbnail,
     setFullres,
     clear,
