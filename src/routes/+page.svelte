@@ -27,19 +27,21 @@
   } as const;
   type PValue = typeof P[keyof typeof P];
 
-  type Job =
-    | { type: 'thumb';   id: string; dirname: string; filename: string; priority: PValue }
-    | { type: 'display'; id: string; priority: PValue };
+  type ThumbJob   = { type: 'thumb';   id: string; dirname: string; filename: string; priority: PValue; seq: number };
+  type DisplayJob = { type: 'display'; id: string; priority: PValue; seq: number };
+  type Job = ThumbJob | DisplayJob;
 
   const fetchQueue: Job[] = [];
   let fetchRunning = false;
+  let jobSeq = 0; // monotonically increasing — newer jobs have higher seq
 
-  function enqueueJob(job: Job) {
+  function enqueueJob(job: Omit<ThumbJob, 'seq'> | Omit<DisplayJob, 'seq'>) {
+    const seq = ++jobSeq;
     // For thumbnail jobs: replace existing lower-priority job for same id
     if (job.type === 'thumb') {
       const existing = fetchQueue.findIndex(j => j.type === 'thumb' && j.id === job.id);
       if (existing !== -1) {
-        if ((fetchQueue[existing] as typeof job).priority <= job.priority) return;
+        if (fetchQueue[existing].priority <= job.priority) return;
         fetchQueue.splice(existing, 1);
       }
     }
@@ -49,8 +51,9 @@
       if (!photo || photo.displayUrl || photo.displayProgress !== null) return;
       if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
     }
-    fetchQueue.push(job);
-    fetchQueue.sort((a, b) => a.priority - b.priority);
+    fetchQueue.push({ ...job, seq } as Job);
+    // Sort: lowest priority number first; within same priority, newest (highest seq) first
+    fetchQueue.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : b.seq - a.seq);
     processFetchQueue();
   }
 
