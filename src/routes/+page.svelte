@@ -9,9 +9,6 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
 
   let eventSource: EventSource | null = null;
-  // Queue of photo IDs waiting for full-res fetch, newest first
-  let fullresQueue: string[] = [];
-  let fetchingFullres = false;
 
   async function fetchCameraInfo() {
     try {
@@ -81,7 +78,6 @@
     eventSource = null;
     cameraStore.setStatus('idle');
     cameraInfoStore.set(null);
-    fullresQueue = [];
   }
 
   async function fetchThumbnail(id: string, dirname: string, filename: string) {
@@ -89,39 +85,16 @@
     // Strip leading / so it becomes the [...path] param for our API routes
     const camPath = `${dirname}/${filename}`.replace(/^\//, '');
     try {
-      const url = `/api/thumbnail/${camPath}`;
-      // Create an object URL from the blob
-      const res = await fetch(url);
+      const res = await fetch(`/api/thumbnail/${camPath}`);
       if (!res.ok) return;
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, objectUrl);
-      // Enqueue full-res fetch (newest first — already prepended)
-      fullresQueue.unshift(id + '|' + camPath);
-      processFullresQueue();
+      // Mark as fullres too — we only have thumbnails for now
+      photosStore.setFullres(id, objectUrl);
     } catch {
       // silent — card stays in loading state
     }
-  }
-
-  async function processFullresQueue() {
-    if (fetchingFullres || fullresQueue.length === 0) return;
-    fetchingFullres = true;
-    while (fullresQueue.length > 0) {
-      const entry = fullresQueue.shift()!;
-      const [id, camPath] = entry.split('|');
-      try {
-        const res = await fetch(`/api/fullres/${camPath}`);
-        if (res.ok) {
-          const blob = await res.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          photosStore.setFullres(id, objectUrl);
-        }
-      } catch {
-        // silent
-      }
-    }
-    fetchingFullres = false;
   }
 
   onDestroy(() => {
