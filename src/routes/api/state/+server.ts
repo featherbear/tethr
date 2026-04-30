@@ -7,7 +7,7 @@
 
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { getStatus, getSettings } from '$lib/server/monitor';
+import { getStatus } from '$lib/server/monitor';
 import { cameraFetch, getCameraConfig } from '$lib/server/camera';
 
 export const GET: RequestHandler = async () => {
@@ -41,6 +41,5 @@ export const GET: RequestHandler = async () => {
     } catch { /* non-fatal */ }
   }
 
-  const settings = getSettings();
-  return json({ status, error, config, cameraInfo, settings });
+  return json({ status, error, config, cameraInfo });
 };

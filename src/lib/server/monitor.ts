@@ -73,10 +73,11 @@ export type Subscriber = (event: Event) => void;
 
 export function subscribe(sub: Subscriber): () => void {
   getSubs().add(sub);
-  // Send current status immediately — client needs this to render correctly.
-  // Do NOT send settings here: /api/state already provides initial settings on
-  // page load, and duplicate SSE sends cause visible flicker on reconnect.
+  // Send current status immediately
   sub({ type: 'status', data: { status: getStatus_(), error: getError_() } });
+  // Send current settings once so the client has values without waiting for a dial change
+  const s = getSettings_();
+  if (s.av || s.tv || s.iso) sub({ type: 'settings', data: s });
   return () => getSubs().delete(sub);
 }
 

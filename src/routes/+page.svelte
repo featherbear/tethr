@@ -56,10 +56,9 @@
     try {
       const res = await fetch('/api/state');
       if (!res.ok) return;
-      const { status, error, cameraInfo, settings } = await res.json();
+      const { status, error, cameraInfo } = await res.json();
       cameraStore.setStatus(status, error ?? undefined);
       if (cameraInfo) cameraInfoStore.set(cameraInfo);
-      if (settings?.av || settings?.tv || settings?.iso) liveSettings = settings;
     } catch { /* non-fatal */ }
   }
 
