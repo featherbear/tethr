@@ -123,33 +123,41 @@
   <!-- Main image area -->
   {#if photo}
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
-      {#key photo.id}
-        <div in:fly={{ y: 20, duration: 200 }} class="image-wrap">
-          {#if photo.displayUrl}
-            <!-- Display quality ready — always show it -->
-            <img src={photo.displayUrl} alt={photo.filename} class="main-img" transition:fade={{ duration: 250 }} />
-          {:else if latestMode && photo.displayProgress !== null}
-            <!-- Latest mode + display fetch in progress — skip thumbnail, show shimmer only -->
-            <div class="placeholder placeholder--shimmer">
-              <div class="shimmer-bar"></div>
-            </div>
-          {:else if photo.thumbnailUrl}
-            <!-- Not latest mode, or no display fetch scheduled — show thumbnail -->
-            <img src={photo.thumbnailUrl} alt={photo.filename} class="main-img main-img--thumb" />
-          {:else}
-            <div class="placeholder">
-              <span class="placeholder-icon">📷</span>
-              <span>Loading…</span>
-            </div>
-          {/if}
-        </div>
-      {/key}
+      <!-- Keep previous image visible while new one loads; crossfade when ready -->
+      <!-- No {#key} — we let images layer on top of each other -->
+      <div class="image-wrap">
+        {#if photo.displayUrl}
+          <!-- Display quality ready — fade in on top, previous image underneath -->
+          {#key photo.displayUrl}
+            <img
+              src={photo.displayUrl}
+              alt={photo.filename}
+              class="main-img"
+              in:fade={{ duration: 300 }}
+            />
+          {/key}
+        {:else if photo.thumbnailUrl && !latestMode}
+          <!-- Non-latest mode: show thumbnail immediately -->
+          {#key photo.thumbnailUrl}
+            <img
+              src={photo.thumbnailUrl}
+              alt={photo.filename}
+              class="main-img main-img--thumb"
+              in:fade={{ duration: 200 }}
+            />
+          {/key}
+        {:else if !photo.thumbnailUrl && !photo.displayUrl}
+          <!-- Nothing loaded yet -->
+          <div class="placeholder">
+            <span class="placeholder-icon">📷</span>
+            <span>Loading…</span>
+          </div>
+        {/if}
+      </div>
 
-      <!-- Progress bar: shown during display-quality fetch -->
+      <!-- Shimmer border: shown while display-quality fetch is in progress -->
       {#if photo.displayProgress !== null && !photo.displayUrl}
-        <div class="progress-track">
-          <div class="progress-fill" style:width="{photo.displayProgress}%"></div>
-        </div>
+        <div class="shimmer-border" transition:fade={{ duration: 150 }}></div>
       {/if}
     </div>
 
@@ -278,6 +286,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
   }
 
   .main-img {
@@ -292,51 +301,30 @@
     filter: blur(0);  /* no blur — thumbnail is already decent quality */
   }
 
-  .placeholder--shimmer {
-    width: min(80vw, 1200px);
-    aspect-ratio: 3/2;
-    border-radius: 4px;
-    overflow: hidden;
-    background: #1a1a2e;
-    position: relative;
-  }
-
-  .shimmer-bar {
+  /* Shimmer border — pulses around image-wrap while HD fetch is in progress */
+  .shimmer-border {
     position: absolute;
-    inset: 0;
+    inset: -3px;
+    border-radius: 7px;
+    pointer-events: none;
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(129, 140, 248, 0.08) 40%,
-      rgba(129, 140, 248, 0.15) 50%,
-      rgba(129, 140, 248, 0.08) 60%,
+      rgba(129, 140, 248, 0.0) 20%,
+      rgba(129, 140, 248, 0.6) 50%,
+      rgba(129, 140, 248, 0.0) 80%,
       transparent 100%
     );
     background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
+    animation: shimmer-sweep 1.4s ease-in-out infinite;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    padding: 3px;
   }
 
-  @keyframes shimmer {
+  @keyframes shimmer-sweep {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
-  }
-
-  /* Progress bar at bottom of image area */
-  .progress-track {
-    position: absolute;
-    bottom: 0;
-    left: 4rem;
-    right: 4rem;
-    height: 2px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 1px;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: #818cf8;
-    border-radius: 1px;
-    transition: width 0.1s linear;
   }
 
   .placeholder {
