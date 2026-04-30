@@ -9,6 +9,7 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
 
   let eventSource: EventSource | null = null;
+  let infoInterval: ReturnType<typeof setInterval> | null = null;
   // Queue of photo IDs waiting for full-res fetch, newest first
   let fullresQueue: string[] = [];
   let fetchingFullres = false;
@@ -36,8 +37,11 @@
       const data = JSON.parse(e.data) as { status: string; error?: string };
       if (data.status === 'live') {
         cameraStore.setStatus('live');
-        // Fetch camera details once we're confirmed live
-        if (!cameraInfoStore.info) fetchCameraInfo();
+        // Fetch camera details on first live, then start periodic refresh
+        fetchCameraInfo();
+        if (!infoInterval) {
+          infoInterval = setInterval(fetchCameraInfo, 30_000);
+        }
       } else if (data.status === 'reconnecting') {
         cameraStore.setStatus('reconnecting', data.error);
       } else if (data.status === 'connecting') {
@@ -67,6 +71,7 @@
     fetch('/api/events', { method: 'DELETE', signal: AbortSignal.timeout(5_000) }).catch(() => {});
     eventSource?.close();
     eventSource = null;
+    if (infoInterval) { clearInterval(infoInterval); infoInterval = null; }
     cameraStore.setStatus('idle');
     cameraInfoStore.set(null);
     fullresQueue = [];

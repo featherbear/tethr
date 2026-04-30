@@ -33,7 +33,7 @@
     <span class="dot" style:background={cfg.color} class:pulse={status === 'live'}></span>
 
     {#if status === 'live' && cameraInfo}
-      <span class="model">{cameraInfo.productname}</span>
+      <span class="model" title="S/N {cameraInfo.serialnumber} · FW {cameraInfo.firmwareversion}">{cameraInfo.productname}</span>
       <span class="sep">·</span>
       <!-- Battery -->
       <span class="battery" style:color={batteryColor(cameraInfo.battery.level)}>
@@ -110,6 +110,8 @@
     font-weight: 600;
     color: #e5e7eb;
     white-space: nowrap;
+    cursor: help;
+    border-bottom: 1px dotted #444;
   }
 
   .sep {
