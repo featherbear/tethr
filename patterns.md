@@ -91,6 +91,24 @@
 - **Fix:** Serve initial state via a dedicated REST endpoint (`/api/state`) on page load. `subscribe()` should only send status (needed for immediate render), not settings. SSE events become pure delta updates.
 - **Prevention:** Keep SSE as a delta-only channel. Never use `subscribe()` to replay full state — use REST for snapshots, SSE for changes.
 
+### Mutable `$state` written inside `$effect` creates feedback loops that cancel transitions
+- **Symptom:** Svelte `in:fade` transition starts but `onintroend` never fires; image swap never completes
+- **Root cause:** Writing `$state` inside `$effect` causes the effect to re-run when that state changes. If the re-run modifies the reactive condition governing a `{#if}` or `{#key}` block, Svelte may unmount/remount the transitioning element mid-animation, cancelling the transition.
+- **Fix:** Replace mutable `$state` intermediaries with `$derived` values computed directly from the source data. The transition block's key only changes when the underlying data changes, not on every effect re-run.
+- **Prevention:** In Svelte 5, avoid writing `$state` from inside `$effect` when that state controls transition blocks. Use `$derived` for values that drive UI transitions.
+
+### `displayProgress` (or similar in-progress flags) must reset to `null` on failure
+- **Symptom:** After a failed fetch, the shimmer stays on forever; idle prefetch skips the photo; future fetches are silently blocked
+- **Root cause:** Setting `displayProgress = 0` (a number) on failure looks like "in progress" to all consumers. Guards like `if (displayProgress !== null) return` correctly skip re-fetching.
+- **Fix:** On any fetch failure or catch, set `displayProgress = null` to return to "idle" state, allowing retries and clearing shimmer indicators.
+- **Prevention:** Treat `null` as "not started/idle" and any number (including 0) as "in progress". Always reset to `null` in error/catch paths, never to a number.
+
+### `onintroend` closures capture reactive variables at callback time, not render time
+- **Symptom:** `onintroend` updates the wrong state — it uses a value that has changed since the element was mounted
+- **Root cause:** `onintroend` is a closure that captures reactive variables by reference. If `photo` or another reactive value changes before the transition ends, the callback reads the new value, not the original.
+- **Fix:** Use `{@const capturedUrl = reactiveValue}` inside the template to freeze the value at render time, then reference `capturedUrl` in the callback.
+- **Prevention:** Any transition callback (`onintroend`, `onoutroend`) that reads a reactive variable should use a `{@const}` capture inside the `{#key}` or `{#if}` block.
+
 ### `const enum` not supported in Svelte `<script>` blocks
 - **Symptom:** `svelte-check` error: "TypeScript language features like enums are not natively supported"
 - **Root cause:** Svelte's compiler processes `<script>` blocks before TypeScript, so `const enum` (which requires type-level erasure) is not supported without extra preprocessor config.
