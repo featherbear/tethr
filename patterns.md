@@ -19,6 +19,12 @@
 
 ## Patterns
 
+### SvelteKit SSR crash: relative fetch in onDestroy
+- **Symptom:** Server crashes on startup with `Cannot call fetch eagerly during server-side rendering with relative URL`
+- **Root cause:** `onDestroy` runs during SSR rendering on the server, so any `fetch()` or browser API inside it fires server-side where relative URLs are invalid
+- **Fix:** Guard browser-only functions with `import { browser } from '$app/environment'` and `if (!browser) return` at the top
+- **Prevention:** Any function using `fetch()`, `EventSource`, `localStorage`, or `URL.createObjectURL` must be browser-guarded if reachable from lifecycle hooks
+
 ### CCAPI 503 "Already started" on event polling
 - **Symptom:** `GET /ccapi/ver110/event/polling` returns HTTP 503 with `{"message":"Already started"}`
 - **Root cause:** Camera allows only one active polling session at a time. A previous connection that disconnected without cleanup leaves a stuck session.
