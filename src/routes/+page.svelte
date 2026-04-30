@@ -3,6 +3,7 @@
   import { browser } from '$app/environment';
   import { cameraStore } from '$lib/stores/camera.svelte';
   import { photosStore } from '$lib/stores/photos.svelte';
+  import { cameraInfoStore } from '$lib/stores/cameraInfo.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
   import CameraConfig from '$lib/components/CameraConfig.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
@@ -12,9 +13,22 @@
   let fullresQueue: string[] = [];
   let fetchingFullres = false;
 
+  async function fetchCameraInfo() {
+    try {
+      const res = await fetch('/api/camera/info');
+      if (res.ok) {
+        const info = await res.json();
+        cameraInfoStore.set(info);
+      }
+    } catch {
+      // non-fatal — status bar will show generic Live label
+    }
+  }
+
   function connect() {
     if (!browser || eventSource) return;
     cameraStore.setStatus('connecting');
+    cameraInfoStore.set(null);
 
     eventSource = new EventSource('/api/events');
 
@@ -22,6 +36,8 @@
       const data = JSON.parse(e.data) as { status: string; error?: string };
       if (data.status === 'live') {
         cameraStore.setStatus('live');
+        // Fetch camera details once we're confirmed live
+        if (!cameraInfoStore.info) fetchCameraInfo();
       } else if (data.status === 'reconnecting') {
         cameraStore.setStatus('reconnecting', data.error);
       } else if (data.status === 'connecting') {
@@ -48,12 +64,11 @@
   async function disconnect() {
     if (!browser) return;
     // Tell the server to immediately release the camera's polling slot.
-    // Fire-and-forget with a short timeout — don't block the UI.
     fetch('/api/events', { method: 'DELETE', signal: AbortSignal.timeout(5_000) }).catch(() => {});
-    // Close the SSE stream (triggers server-side abort → closed = true)
     eventSource?.close();
     eventSource = null;
     cameraStore.setStatus('idle');
+    cameraInfoStore.set(null);
     fullresQueue = [];
   }
 
@@ -107,6 +122,7 @@
     status={cameraStore.status}
     errorMessage={cameraStore.errorMessage}
     shotCount={photosStore.photos.length}
+    cameraInfo={cameraInfoStore.info}
   />
   <CameraConfig onconnect={connect} ondisconnect={disconnect} />
   <main class="content">
