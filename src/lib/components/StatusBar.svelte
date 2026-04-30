@@ -70,24 +70,9 @@
     <span class="dot" style:background={cfg.color} class:pulse={status === 'live'}></span>
 
     {#if status === 'live' && cameraInfo}
-      <!-- Model with serial number popover -->
-      <div class="model-wrap">
-        <span class="model">{cameraInfo.productname}</span>
-        <div class="popover">
-          <div class="popover__row">
-            <span class="popover__label">Serial</span>
-            <span class="popover__value">{cameraInfo.serialnumber}</span>
-          </div>
-          <div class="popover__row">
-            <span class="popover__label">Firmware</span>
-            <span class="popover__value">{cameraInfo.firmwareversion}</span>
-          </div>
-          <div class="popover__row">
-            <span class="popover__label">Battery</span>
-            <span class="popover__value">{cameraInfo.battery.name}</span>
-          </div>
-        </div>
-      </div>
+      <!-- Model + serial -->
+      <span class="model">{cameraInfo.productname}</span>
+      <span class="serial">{cameraInfo.serialnumber}</span>
 
       <span class="sep">·</span>
 
@@ -195,60 +180,17 @@
     white-space: nowrap;
   }
 
-  /* Model + serial popover */
-  .model-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
   .model {
     font-weight: 600;
     color: #e5e7eb;
     white-space: nowrap;
-    cursor: default;
   }
 
-  .popover {
-    display: none;
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    padding: 0.6rem 0.85rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    z-index: 50;
-    min-width: 200px;
-    flex-direction: column;
-    gap: 0.35rem;
-    white-space: nowrap;
-  }
-
-  .model-wrap:hover .popover {
-    display: flex;
-  }
-
-  .popover__row {
-    display: flex;
-    gap: 0.75rem;
-    align-items: baseline;
-  }
-
-  .popover__label {
-    font-size: 0.65rem;
-    color: #4b5563;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    width: 56px;
-    flex-shrink: 0;
-  }
-
-  .popover__value {
-    font-size: 0.75rem;
-    color: #d1d5db;
+  .serial {
     font-family: monospace;
+    font-size: 0.7rem;
+    color: #4b5563;
+    white-space: nowrap;
   }
 
   /* Battery */
