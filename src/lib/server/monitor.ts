@@ -123,24 +123,25 @@ async function runLoop(signal: AbortSignal) {
         throw new Error(`Camera responded with ${res.status}`);
       }
 
-      // Fetch initial shooting settings in parallel before entering stream
+      // Fetch all initial shooting settings in one request before entering stream
       try {
-        const [avRes, tvRes, isoRes, modeRes, wbRes] = await Promise.all([
-          cameraFetch('/ccapi/ver100/shooting/settings/av',               { signal: AbortSignal.timeout(3_000) }),
-          cameraFetch('/ccapi/ver100/shooting/settings/tv',               { signal: AbortSignal.timeout(3_000) }),
-          cameraFetch('/ccapi/ver100/shooting/settings/iso',              { signal: AbortSignal.timeout(3_000) }),
-          cameraFetch('/ccapi/ver100/shooting/settings/shootingmodedial', { signal: AbortSignal.timeout(3_000) }),
-          cameraFetch('/ccapi/ver100/shooting/settings/wb',               { signal: AbortSignal.timeout(3_000) }),
-        ]);
-        const initial: ShootingSettings = {
-          av:   avRes.ok   ? ((await avRes.json()  ).value ?? null) : null,
-          tv:   tvRes.ok   ? ((await tvRes.json()  ).value ?? null) : null,
-          iso:  isoRes.ok  ? ((await isoRes.json() ).value ?? null) : null,
-          mode: modeRes.ok ? ((await modeRes.json()).value ?? null) : null,
-          wb:   wbRes.ok   ? ((await wbRes.json()  ).value ?? null) : null,
-        };
-        setSettings_(initial);
-        broadcast('settings', initial);
+        const settingsRes = await cameraFetch('/ccapi/ver100/shooting/settings', { signal: AbortSignal.timeout(5_000) });
+        if (settingsRes.ok) {
+          const all = await settingsRes.json() as Record<string, { value?: unknown }>;
+          const val = (key: string): string | null => {
+            const v = all[key]?.value;
+            return (v !== null && v !== undefined && v !== '') ? String(v) : null;
+          };
+          const initial: ShootingSettings = {
+            av:   val('av'),
+            tv:   val('tv'),
+            iso:  val('iso'),
+            mode: val('shootingmodedial'),
+            wb:   val('wb'),
+          };
+          setSettings_(initial);
+          broadcast('settings', initial);
+        }
       } catch { /* non-fatal — stream will fill in values as dials change */ }
 
       setStatus('live');
