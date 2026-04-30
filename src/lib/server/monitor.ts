@@ -26,14 +26,38 @@ export interface ShootingSettings {
   wb:   string | null;  // white balance, e.g. "auto", "colortemp"
 }
 
-let _status: MonitorStatus = 'stopped';
-let _error: string | null = null;
-let _abortController: AbortController | null = null;
+// ---------------------------------------------------------------------------
+// HMR-safe globals — survive Vite module reload in dev
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g = globalThis as any;
 
-// Latest known shooting settings — updated from monitoring frames
-let _settings: ShootingSettings = { av: null, tv: null, iso: null, mode: null, wb: null };
+function global<T>(key: string, init: () => T): { get: () => T; set: (v: T) => void } {
+  if (!(key in g)) g[key] = init();
+  return {
+    get: () => g[key] as T,
+    set: (v: T) => { g[key] = v; },
+  };
+}
 
-export function getSettings(): Readonly<ShootingSettings> { return _settings; }
+const _statusG    = global<MonitorStatus>('__monitor_status',    () => 'stopped');
+const _errorG     = global<string | null>('__monitor_error',     () => null);
+const _controllerG= global<AbortController | null>('__monitor_ctrl', () => null);
+const _settingsG  = global<ShootingSettings>('__monitor_settings', () => ({ av: null, tv: null, iso: null, mode: null, wb: null }));
+const _subscribersG = global<Set<Subscriber>>('__monitor_subs',  () => new Set());
+
+// Convenience getters/setters
+function getStatus_()    { return _statusG.get(); }
+function setStatus_(v: MonitorStatus) { _statusG.set(v); }
+function getError_()     { return _errorG.get(); }
+function setError_(v: string | null) { _errorG.set(v); }
+function getController_() { return _controllerG.get(); }
+function setController_(v: AbortController | null) { _controllerG.set(v); }
+function getSettings_()  { return _settingsG.get(); }
+function setSettings_(v: ShootingSettings) { _settingsG.set(v); }
+function getSubs()       { return _subscribersG.get(); }
+
+export function getSettings(): Readonly<ShootingSettings> { return getSettings_(); }
 
 // ---------------------------------------------------------------------------
 // Subscriber fan-out
@@ -42,21 +66,18 @@ export function getSettings(): Readonly<ShootingSettings> { return _settings; }
 export type Event = { type: string; data: unknown };
 export type Subscriber = (event: Event) => void;
 
-const subscribers = new Set<Subscriber>();
-
 export function subscribe(sub: Subscriber): () => void {
-  subscribers.add(sub);
+  getSubs().add(sub);
   // Immediately send current status and settings to new subscriber
-  sub({ type: 'status', data: { status: _status, error: _error } });
-  if (_settings.av || _settings.tv || _settings.iso) {
-    sub({ type: 'settings', data: _settings });
-  }
-  return () => subscribers.delete(sub);
+  const s = getSettings_();
+  sub({ type: 'status', data: { status: getStatus_(), error: getError_() } });
+  if (s.av || s.tv || s.iso) sub({ type: 'settings', data: s });
+  return () => getSubs().delete(sub);
 }
 
 function broadcast(type: string, data: unknown) {
   const event: Event = { type, data };
-  for (const sub of subscribers) {
+  for (const sub of getSubs()) {
     try { sub(event); } catch { /* subscriber gone */ }
   }
 }
@@ -70,9 +91,9 @@ const MIN_BACKOFF = 1_000;
 const MAX_BACKOFF = 30_000;
 
 function setStatus(status: MonitorStatus, error?: string) {
-  _status = status;
-  _error = error ?? null;
-  broadcast('status', { status, error: _error });
+  setStatus_(status);
+  setError_(error ?? null);
+  broadcast('status', { status, error: error ?? null });
 }
 
 async function stopExistingSession() {
@@ -119,18 +140,20 @@ async function runLoop(signal: AbortSignal) {
         for (const { parsed } of frames) {
           // Update settings from this frame (partial updates are common)
           let settingsChanged = false;
-          if (parsed.av)               { _settings = { ..._settings, av:   (parsed.av   as { value: string }).value }; settingsChanged = true; }
-          if (parsed.tv)               { _settings = { ..._settings, tv:   (parsed.tv   as { value: string }).value }; settingsChanged = true; }
-          if (parsed.iso)              { _settings = { ..._settings, iso:  (parsed.iso  as { value: string }).value }; settingsChanged = true; }
-          if (parsed.shootingmodedial) { _settings = { ..._settings, mode: (parsed.shootingmodedial as { value: string }).value }; settingsChanged = true; }
-          if (parsed.wb)               { _settings = { ..._settings, wb:   (parsed.wb   as { value: string }).value }; settingsChanged = true; }
+          let s = getSettings_();
+          if (parsed.av)               { s = { ...s, av:   (parsed.av   as { value: string }).value }; settingsChanged = true; }
+          if (parsed.tv)               { s = { ...s, tv:   (parsed.tv   as { value: string }).value }; settingsChanged = true; }
+          if (parsed.iso)              { s = { ...s, iso:  (parsed.iso  as { value: string }).value }; settingsChanged = true; }
+          if (parsed.shootingmodedial) { s = { ...s, mode: (parsed.shootingmodedial as { value: string }).value }; settingsChanged = true; }
+          if (parsed.wb)               { s = { ...s, wb:   (parsed.wb   as { value: string }).value }; settingsChanged = true; }
+          if (settingsChanged) setSettings_(s);
 
-          if (settingsChanged) broadcast('settings', _settings);
+          if (settingsChanged) broadcast('settings', getSettings_());
 
           // New photos — attach current settings snapshot to shot event
           if (Array.isArray(parsed.addedcontents)) {
             for (const path of parsed.addedcontents as string[]) {
-              broadcast('shot', { path, settings: { ..._settings } });
+              broadcast('shot', { path, settings: { ...getSettings_() } });
             }
           }
 
@@ -167,18 +190,19 @@ async function runLoop(signal: AbortSignal) {
 /** Start (or restart) the monitor loop. Safe to call multiple times. */
 export function startMonitor() {
   // Abort any existing loop
-  _abortController?.abort();
-  _abortController = new AbortController();
-  runLoop(_abortController.signal).catch(console.error);
+  getController_()?.abort();
+  const ctrl = new AbortController();
+  setController_(ctrl);
+  runLoop(ctrl.signal).catch(console.error);
 }
 
 /** Stop the monitor loop (e.g. on server shutdown). */
 export function stopMonitor() {
-  _abortController?.abort();
-  _abortController = null;
+  getController_()?.abort();
+  setController_(null);
 }
 
 /** Current connection status */
 export function getStatus(): { status: MonitorStatus; error: string | null } {
-  return { status: _status, error: _error };
+  return { status: getStatus_(), error: getError_() };
 }

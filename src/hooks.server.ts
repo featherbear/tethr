@@ -5,9 +5,13 @@
  * The monitor runs independently of any browser clients.
  */
 
-import { startMonitor } from '$lib/server/monitor';
+import { startMonitor, getStatus } from '$lib/server/monitor';
 
-// Start monitoring immediately on server boot
-startMonitor();
+// Start monitoring on server boot.
+// Guard against HMR re-execution: only start if not already running.
+const { status } = getStatus();
+if (status === 'stopped') {
+  startMonitor();
+}
 
 export const handle = async ({ event, resolve }) => resolve(event);
