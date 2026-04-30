@@ -1,11 +1,16 @@
 export type PhotoState = 'loading' | 'thumbnail' | 'fullres';
 
 export interface ShootingSettings {
-  av:   string | null;
-  tv:   string | null;
-  iso:  string | null;
-  mode: string | null;
-  wb:   string | null;
+  av:           string | null;  // aperture e.g. "f2.8"
+  tv:           string | null;  // shutter e.g. "1/125"
+  iso:          string | null;  // ISO e.g. "3200"
+  mode:         string | null;  // shooting mode dial e.g. "av", "m"
+  wb:           string | null;  // white balance e.g. "colortemp", "auto"
+  colortemp:    number | null;  // colour temperature in K (when wb=colortemp)
+  exposure:     string | null;  // exposure compensation e.g. "+0.0", "-1_1/3"
+  metering:     string | null;  // metering mode e.g. "evaluative", "spot"
+  drive:        string | null;  // drive mode e.g. "single", "highspeed"
+  afoperation:  string | null;  // AF operation e.g. "manual", "oneshot"
 }
 
 /** Canon RAW formats — CR3 (R-series) and CR2 (legacy DSLR) */

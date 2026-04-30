@@ -19,11 +19,16 @@ import { cameraFetch, extractFrames } from './camera';
 export type MonitorStatus = 'connecting' | 'live' | 'reconnecting' | 'stopped';
 
 export interface ShootingSettings {
-  av:   string | null;  // aperture, e.g. "f2.8"
-  tv:   string | null;  // shutter speed, e.g. "1/125"
-  iso:  string | null;  // ISO, e.g. "3200"
-  mode: string | null;  // shooting mode dial, e.g. "av", "m", "tv"
-  wb:   string | null;  // white balance, e.g. "auto", "colortemp"
+  av:          string | null;  // aperture e.g. "f2.8"
+  tv:          string | null;  // shutter speed e.g. "1/125"
+  iso:         string | null;  // ISO e.g. "3200"
+  mode:        string | null;  // shooting mode dial e.g. "av", "m"
+  wb:          string | null;  // white balance e.g. "colortemp", "auto"
+  colortemp:   number | null;  // colour temperature in K (when wb=colortemp)
+  exposure:    string | null;  // exposure compensation e.g. "+0.0"
+  metering:    string | null;  // metering mode e.g. "evaluative", "spot"
+  drive:       string | null;  // drive mode e.g. "single", "highspeed"
+  afoperation: string | null;  // AF operation e.g. "manual", "oneshot"
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +48,7 @@ function global<T>(key: string, init: () => T): { get: () => T; set: (v: T) => v
 const _statusG    = global<MonitorStatus>('__monitor_status',    () => 'stopped');
 const _errorG     = global<string | null>('__monitor_error',     () => null);
 const _controllerG= global<AbortController | null>('__monitor_ctrl', () => null);
-const _settingsG  = global<ShootingSettings>('__monitor_settings', () => ({ av: null, tv: null, iso: null, mode: null, wb: null }));
+const _settingsG  = global<ShootingSettings>('__monitor_settings', () => ({ av: null, tv: null, iso: null, mode: null, wb: null, colortemp: null, exposure: null, metering: null, drive: null, afoperation: null }));
 const _subscribersG = global<Set<Subscriber>>('__monitor_subs',  () => new Set());
 
 // Convenience getters/setters
@@ -132,12 +137,18 @@ async function runLoop(signal: AbortSignal) {
             const v = all[key]?.value;
             return (v !== null && v !== undefined && v !== '') ? String(v) : null;
           };
+          const ctRaw = all['colortemperature']?.value;
           const initial: ShootingSettings = {
-            av:   val('av'),
-            tv:   val('tv'),
-            iso:  val('iso'),
-            mode: val('shootingmodedial'),
-            wb:   val('wb'),
+            av:          val('av'),
+            tv:          val('tv'),
+            iso:         val('iso'),
+            mode:        val('shootingmodedial'),
+            wb:          val('wb'),
+            colortemp:   (typeof ctRaw === 'number') ? ctRaw : null,
+            exposure:    val('exposure'),
+            metering:    val('metering'),
+            drive:       val('drive'),
+            afoperation: val('afoperation'),
           };
           setSettings_(initial);
           broadcast('settings', initial);
@@ -162,11 +173,18 @@ async function runLoop(signal: AbortSignal) {
           // Update settings from this frame (partial updates are common)
           let settingsChanged = false;
           let s = getSettings_();
-          if (parsed.av)               { s = { ...s, av:   (parsed.av   as { value: string }).value }; settingsChanged = true; }
-          if (parsed.tv)               { s = { ...s, tv:   (parsed.tv   as { value: string }).value }; settingsChanged = true; }
-          if (parsed.iso)              { s = { ...s, iso:  (parsed.iso  as { value: string }).value }; settingsChanged = true; }
-          if (parsed.shootingmodedial) { s = { ...s, mode: (parsed.shootingmodedial as { value: string }).value }; settingsChanged = true; }
-          if (parsed.wb)               { s = { ...s, wb:   (parsed.wb   as { value: string }).value }; settingsChanged = true; }
+          const strVal = (f: unknown) => (f as { value: string } | null)?.value ?? null;
+          const numVal = (f: unknown) => { const v = (f as { value: unknown } | null)?.value; return typeof v === 'number' ? v : null; };
+          if (parsed.av)              { s = { ...s, av:          strVal(parsed.av)              }; settingsChanged = true; }
+          if (parsed.tv)              { s = { ...s, tv:          strVal(parsed.tv)              }; settingsChanged = true; }
+          if (parsed.iso)             { s = { ...s, iso:         strVal(parsed.iso)             }; settingsChanged = true; }
+          if (parsed.shootingmodedial){ s = { ...s, mode:        strVal(parsed.shootingmodedial)}; settingsChanged = true; }
+          if (parsed.wb)              { s = { ...s, wb:          strVal(parsed.wb)              }; settingsChanged = true; }
+          if (parsed.colortemperature){ s = { ...s, colortemp:   numVal(parsed.colortemperature)}; settingsChanged = true; }
+          if (parsed.exposure)        { s = { ...s, exposure:    strVal(parsed.exposure)        }; settingsChanged = true; }
+          if (parsed.metering)        { s = { ...s, metering:    strVal(parsed.metering)        }; settingsChanged = true; }
+          if (parsed.drive)           { s = { ...s, drive:       strVal(parsed.drive)           }; settingsChanged = true; }
+          if (parsed.afoperation)     { s = { ...s, afoperation: strVal(parsed.afoperation)     }; settingsChanged = true; }
           if (settingsChanged) setSettings_(s);
 
           if (settingsChanged) broadcast('settings', getSettings_());

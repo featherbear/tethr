@@ -45,6 +45,25 @@
   // Show photo settings or fall back to live settings if photo has none
   const displaySettings = $derived(photo?.settings ?? liveSettings);
 
+  const METERING: Record<string, string> = {
+    evaluative:              '⬡ Evaluative',
+    spot:                    '⊙ Spot',
+    partial:                 '◎ Partial',
+    center_weighted_average: '◉ Center',
+  };
+
+  const WB: Record<string, string> = {
+    auto:             'AWB',
+    daylight:         '☀ Daylight',
+    shade:            '🌥 Shade',
+    cloudy:           '☁ Cloudy',
+    tungsten:         '💡 Tungsten',
+    whitefluorescent: '☯ Fluorescent',
+    flash:            '⚡ Flash',
+    custom:           'Custom WB',
+    awbwhite:         'AWB White',
+  };
+
   function prev() {
     if (latestMode) return;
     const newIndex = Math.min(index + 1, photos.length - 1);
@@ -138,6 +157,21 @@
           {#if displaySettings.av}<span class="exif">{displaySettings.av}</span>{/if}
           {#if displaySettings.tv}<span class="exif">{displaySettings.tv}</span>{/if}
           {#if displaySettings.iso}<span class="exif">ISO {displaySettings.iso}</span>{/if}
+          {#if displaySettings.exposure && displaySettings.exposure !== '+0.0'}
+            <span class="exif exif--dim">{displaySettings.exposure.replace('_', ' ')} EV</span>
+          {/if}
+        {/if}
+        {#if displaySettings?.metering || displaySettings?.wb || displaySettings?.afoperation}
+          <span class="sep">·</span>
+          {#if displaySettings.afoperation}<span class="exif exif--dim">{displaySettings.afoperation === 'manual' ? 'MF' : displaySettings.afoperation.toUpperCase()}</span>{/if}
+          {#if displaySettings.metering}<span class="exif exif--dim">{METERING[displaySettings.metering] ?? displaySettings.metering}</span>{/if}
+          {#if displaySettings.wb}
+            <span class="exif exif--dim">
+              {displaySettings.wb === 'colortemp' && displaySettings.colortemp
+                ? `${displaySettings.colortemp}K`
+                : WB[displaySettings.wb] ?? displaySettings.wb}
+            </span>
+          {/if}
         {/if}
         <span class="sep">·</span>
         <span class="counter">{photos.length - index} / {photos.length}</span>
@@ -310,6 +344,11 @@
     color: #e5e7eb;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+  }
+
+  .exif--dim {
+    color: #6b7280;
+    font-weight: 400;
   }
 
   .latest-btn {

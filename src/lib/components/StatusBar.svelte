@@ -14,6 +14,16 @@
 
   const { status, errorMessage = null, shotCount = 0, cameraInfo = null, shootingSettings = null, onsettings }: Props = $props();
 
+  const DRIVE_LABELS: Record<string, string> = {
+    cont_super_hi: 'BURST HI+',
+    highspeed:     'BURST HI',
+    lowspeed:      'BURST LO',
+    self_10sec:    'SELF 10s',
+    self_2sec:     'SELF 2s',
+    self_continuous: 'SELF CONT',
+  };
+  function driveLabel(d: string): string { return DRIVE_LABELS[d] ?? d.toUpperCase(); }
+
   const statusConfig: Record<ConnectionStatus, { label: string; color: string }> = {
     idle:         { label: 'Idle',         color: '#6b7280' },
     connecting:   { label: 'Connecting…',  color: '#f59e0b' },
@@ -87,6 +97,8 @@
           {#if shootingSettings.av}<span class="setting">{shootingSettings.av}</span>{/if}
           {#if shootingSettings.tv}<span class="setting">{shootingSettings.tv}</span>{/if}
           {#if shootingSettings.iso}<span class="setting">ISO {shootingSettings.iso}</span>{/if}
+          {#if shootingSettings.exposure && shootingSettings.exposure !== '+0.0'}<span class="setting exp">{shootingSettings.exposure.replace('_', ' ')}</span>{/if}
+          {#if shootingSettings.drive && shootingSettings.drive !== 'single'}<span class="setting drive">{driveLabel(shootingSettings.drive)}</span>{/if}
         </div>
       {/if}
 
