@@ -153,11 +153,16 @@ async function runLoop(signal: AbortSignal) {
             drive:       val('drive'),
             afoperation: val('afoperation'),
           });
-          // No broadcast here — /api/state serves the initial values
         }
       } catch { /* non-fatal — stream will fill in values as dials change */ }
 
       setStatus('live');
+      // Broadcast settings immediately when live — guarantees client gets values
+      // even on first boot before any dial change triggers a stream frame
+      const liveSettings = getSettings_();
+      if (liveSettings.av || liveSettings.tv || liveSettings.iso) {
+        broadcast('settings', liveSettings);
+      }
       backoff = MIN_BACKOFF;
 
       const reader = res.body.getReader();
