@@ -7,9 +7,11 @@
   import StatusBar from '$lib/components/StatusBar.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
+  import Lightbox from '$lib/components/Lightbox.svelte';
 
   let eventSource: EventSource | null = null;
   let showSettings = $state(false);
+  let lightboxIndex = $state<number | null>(null);
 
   // Serial thumbnail fetch queue — one request at a time to avoid camera 503s
   type ThumbJob = { id: string; dirname: string; filename: string; priority: number };
@@ -147,12 +149,20 @@
     onsettings={() => (showSettings = true)}
   />
   <main class="content">
-    <PhotoGrid photos={photosStore.photos} />
+    <PhotoGrid photos={photosStore.photos} onopen={(i) => (lightboxIndex = i)} />
   </main>
 </div>
 
 {#if showSettings}
   <SettingsModal onclose={() => (showSettings = false)} />
+{/if}
+
+{#if lightboxIndex !== null}
+  <Lightbox
+    photos={photosStore.photos}
+    initialIndex={lightboxIndex}
+    onclose={() => (lightboxIndex = null)}
+  />
 {/if}
 
 <style>

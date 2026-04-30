@@ -5,9 +5,10 @@
 
   interface Props {
     photos: Photo[];
+    onopen: (index: number) => void;
   }
 
-  const { photos }: Props = $props();
+  const { photos, onopen }: Props = $props();
 </script>
 
 {#if photos.length === 0}
@@ -18,9 +19,9 @@
   </div>
 {:else}
   <div class="grid">
-    {#each photos as photo (photo.id)}
+    {#each photos as photo, i (photo.id)}
       <div in:fly={{ y: -24, duration: 300 }}>
-        <PhotoCard {photo} />
+        <PhotoCard {photo} onclick={() => onopen(i)} />
       </div>
     {/each}
   </div>

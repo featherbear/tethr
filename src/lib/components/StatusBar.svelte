@@ -23,10 +23,28 @@
 
   const cfg = $derived(statusConfig[status]);
 
+  let isFullscreen = $state(false);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      isFullscreen = true;
+    } else {
+      document.exitFullscreen().catch(() => {});
+      isFullscreen = false;
+    }
+  }
+
+  function handleFullscreenChange() {
+    isFullscreen = !!document.fullscreenElement;
+  }
+
   const usedBytes   = $derived(cameraInfo?.storage ? cameraInfo.storage.maxsize - cameraInfo.storage.spacesize : 0);
   const usedPercent = $derived(cameraInfo?.storage ? Math.round((usedBytes / cameraInfo.storage.maxsize) * 100) : 0);
   const freeStr     = $derived(cameraInfo?.storage ? formatBytes(cameraInfo.storage.spacesize) : '');
 </script>
+
+<svelte:window onfullscreenchange={handleFullscreenChange} />
 
 <div class="status-bar">
   <!-- Left: connection status -->
@@ -64,6 +82,9 @@
     {#if shotCount > 0}
       <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
     {/if}
+    <button class="fullscreen-btn" onclick={toggleFullscreen} title="Fullscreen (F)" aria-label="Toggle fullscreen">
+      {isFullscreen ? '⛶' : '⛶'}
+    </button>
     <button class="settings-btn" onclick={onsettings} title="Camera settings" aria-label="Camera settings">
       ⚙
     </button>
@@ -171,6 +192,7 @@
     color: #6b7280;
   }
 
+  .fullscreen-btn,
   .settings-btn {
     background: none;
     border: none;
@@ -183,6 +205,7 @@
     border-radius: 4px;
   }
 
+  .fullscreen-btn:hover,
   .settings-btn:hover {
     color: #9ca3af;
     background: #1f1f1f;
