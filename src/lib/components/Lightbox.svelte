@@ -59,10 +59,10 @@
     const id = photo.id;
 
     if (id !== processedId) {
-      // Photo changed — start shimmer, clear fading, keep shownUrl as crossfade source
+      // Photo changed — clear fading, keep shownUrl as crossfade source
       processedId = id;
       fadingUrl = null;
-      shimmer = true;
+      shimmer = false; // shimmer only shows when a fetch is actually in progress
       // Request display-quality image if not already loading
       onfetchdisplay?.(id);
     }
@@ -75,6 +75,15 @@
     if (best && best !== shownUrl && best !== fadingUrl) {
       // A better image is available — fade it in
       fadingUrl = best;
+      shimmer = false;
+    }
+
+    // Show shimmer only while a display fetch is actually in progress
+    // (displayProgress !== null means fetch has started but not completed)
+    const fetchInProgress = photo.displayProgress !== null && !photo.displayUrl;
+    if (fetchInProgress && !fadingUrl) {
+      shimmer = true;
+    } else if (!fetchInProgress || fadingUrl) {
       shimmer = false;
     }
   });
