@@ -178,12 +178,11 @@
             />
           {/key}
         {/if}
+        <!-- Shimmer border: inside image-wrap, hugs the image edge while HD loads -->
+        {#if !photo.displayUrl}
+          <div class="shimmer-border"></div>
+        {/if}
       </div>
-
-      <!-- Shimmer border: shown while display-quality fetch is in progress -->
-      {#if photo.displayProgress !== null && !photo.displayUrl}
-        <div class="shimmer-border" transition:fade={{ duration: 150 }}></div>
-      {/if}
     </div>
 
     <!-- Bottom bar -->
