@@ -185,9 +185,17 @@ async function runLoop(signal: AbortSignal) {
           if (parsed.metering)        { s = { ...s, metering:    strVal(parsed.metering)        }; settingsChanged = true; }
           if (parsed.drive)           { s = { ...s, drive:       strVal(parsed.drive)           }; settingsChanged = true; }
           if (parsed.afoperation)     { s = { ...s, afoperation: strVal(parsed.afoperation)     }; settingsChanged = true; }
-          if (settingsChanged) setSettings_(s);
-
-          if (settingsChanged) broadcast('settings', getSettings_());
+          if (settingsChanged) {
+            const prev = getSettings_();
+            // Only broadcast if any value actually changed
+            const changed =
+              s.av !== prev.av || s.tv !== prev.tv || s.iso !== prev.iso ||
+              s.mode !== prev.mode || s.wb !== prev.wb || s.colortemp !== prev.colortemp ||
+              s.exposure !== prev.exposure || s.metering !== prev.metering ||
+              s.drive !== prev.drive || s.afoperation !== prev.afoperation;
+            setSettings_(s);
+            if (changed) broadcast('settings', s);
+          }
 
           // New photos — attach current settings snapshot to shot event
           if (Array.isArray(parsed.addedcontents)) {
