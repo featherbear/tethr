@@ -1,13 +1,12 @@
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { getCameraBaseUrl } from '$lib/server/camera';
+import { cameraFetch } from '$lib/server/camera';
 
 export const GET: RequestHandler = async ({ params }) => {
-  const base = getCameraBaseUrl();
   const camPath = `/${params.path}`;
 
   try {
-    const res = await fetch(`${base}${camPath}?kind=original`, {
+    const res = await cameraFetch(`${camPath}?kind=original`, {
       signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) error(res.status, `Camera responded with ${res.status}`);

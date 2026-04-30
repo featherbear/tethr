@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { getCameraBaseUrl } from '$lib/server/camera';
+import { cameraFetch } from '$lib/server/camera';
 
 // Backoff settings
 const MIN_BACKOFF_MS = 1_000;
@@ -24,8 +24,7 @@ export const GET: RequestHandler = ({ request }) => {
 
       while (!closed) {
         try {
-          const base = getCameraBaseUrl();
-          const res = await fetch(`${base}/ccapi/ver100/event/polling`, {
+          const res = await cameraFetch('/ccapi/ver100/event/polling', {
             signal: AbortSignal.timeout(60_000),
           });
 
