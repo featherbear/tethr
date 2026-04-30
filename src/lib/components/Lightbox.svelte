@@ -141,7 +141,12 @@
       <div class="image-wrap">
         <!-- Layer 1: previous/current rendered image (always visible until replaced) -->
         {#if renderedUrl}
-          <img src={renderedUrl} alt={photo.filename} class="main-img main-img--bg" />
+          <img
+            src={renderedUrl}
+            alt={photo.filename}
+            class="main-img main-img--bg"
+            onerror={() => { renderedUrl = null; }}
+          />
         {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
@@ -158,6 +163,7 @@
               class="main-img main-img--top"
               in:fade={{ duration: 300 }}
               onintroend={() => { renderedUrl = photo.displayUrl; }}
+              onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
             />
           {/key}
         {:else if photo.thumbnailUrl && !latestMode && photo.thumbnailUrl !== renderedUrl && !photo.displayUrl}
@@ -168,6 +174,7 @@
               class="main-img main-img--top"
               in:fade={{ duration: 200 }}
               onintroend={() => { renderedUrl = photo.thumbnailUrl; }}
+              onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
             />
           {/key}
         {/if}
