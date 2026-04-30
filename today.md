@@ -6,7 +6,8 @@
 
 ## Last Updated
 
-2026-05-01 — All milestones built and verified against live R6 Mark II. Real camera connected over HTTPS.
+2026-05-01 — Shot events verified working end-to-end from live R6 Mark II.
+Binary frame parser rewritten from scratch after probing actual wire format.
 
 ---
 

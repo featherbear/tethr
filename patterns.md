@@ -25,6 +25,16 @@
 - **Fix:** Guard browser-only functions with `import { browser } from '$app/environment'` and `if (!browser) return` at the top
 - **Prevention:** Any function using `fetch()`, `EventSource`, `localStorage`, or `URL.createObjectURL` must be browser-guarded if reachable from lifecycle hooks
 
+### CCAPI monitoring stream binary frame format (verified on R6 Mark II)
+- **Frame format — two variants interleaved in the same stream:**
+  - First frame:       `ff 00 02` + 4-byte BE length + JSON  (7-byte header)
+  - Subsequent frames: `ff ff ff 00 02` + 4-byte BE length + JSON  (9-byte header)
+- **Empty frames** (`length=2`, payload `{}`) are heartbeats — skip them
+- **`addedcontents`** array in a frame = new file paths on the card (shot notification)
+- **On connect:** camera immediately delivers all queued shots since last session
+- **No timeout** on the fetch — this is a persistent stream; `AbortSignal.timeout()` applies to the entire response including body reads, causing false reconnects
+- **Correct parser:** detect header variant by inspecting bytes 1-4; extract length from the right offset; advance buffer by `headerSize + payloadLen`
+
 ### CCAPI event endpoints: monitoring vs polling
 - **Symptom:** SSE stream floods with `status:live` events; no shot notifications received.
 - **Root cause:** `ver110/event/polling` returns `{}` immediately when camera activity causes queued events (e.g. changing a dial). It DOES block until an event when idle. Both endpoints return `addedcontents` on shots. The issue was: the loop was calling polling in a tight loop and sending `status:live` after EVERY response (including non-shot events).
