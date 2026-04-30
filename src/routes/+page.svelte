@@ -193,11 +193,12 @@
     const photo = photosStore.photos.find(p => p.id === id);
     if (!photo || photo.displayUrl) return; // already fetched
 
-    // Find the JPG variant — display only works on JPG
-    const jpgVariant = photo.variants.find(v => /\.jpe?g$/i.test(v));
-    if (!jpgVariant) return;
+    // Prefer JPG variant, fall back to CR3/CR2 — camera serves display JPEG from RAW too
+    const displayVariant = photo.variants.find(v => /\.jpe?g$/i.test(v))
+                        ?? photo.variants.find(v => /\.(cr3|cr2)$/i.test(v));
+    if (!displayVariant) return;
 
-    const camPath = `${photo.dirname}/${jpgVariant}`.replace(/^\//, '');
+    const camPath = `${photo.dirname}/${displayVariant}`.replace(/^\//, '');
     try {
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
