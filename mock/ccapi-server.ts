@@ -1,0 +1,102 @@
+#!/usr/bin/env bun
+/**
+ * Mock Canon CCAPI server for development.
+ * Simulates all endpoints used by Tethr.
+ * Run with: bun run mock/ccapi-server.ts
+ */
+
+const PORT = 8080;
+const SHOT_INTERVAL_MS = 5000; // auto-fire a shot event every 5s
+
+// Track polling clients via a simple queue
+let pendingPollers: Array<{ resolve: (v: Response) => void }> = [];
+let shotCounter = 0;
+
+// Auto-fire shots so dev works without pressing anything
+setInterval(() => {
+  fireShot();
+}, SHOT_INTERVAL_MS);
+
+function fireShot() {
+  shotCounter++;
+  const filename = `IMG_${String(shotCounter).padStart(4, '0')}.JPG`;
+  const event = {
+    kind: 'shotnotification',
+    value: {
+      storagegen: 'storage1',
+      dirname: '/ccapi/ver100/contents/storage1/card1/100CANON',
+      filename,
+    },
+  };
+  console.log(`[mock] Shot fired: ${filename} (${pendingPollers.length} pollers waiting)`);
+  const pollers = pendingPollers.splice(0);
+  for (const p of pollers) {
+    p.resolve(new Response(JSON.stringify(event), {
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  }
+}
+
+// Sample thumbnail — tiny 1x1 red JPEG (base64)
+const TINY_JPEG_B64 =
+  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U' +
+  'HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgN' +
+  'DRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy' +
+  'MjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUEB' +
+  '/8QAIRAAAgIBBAMBAAAAAAAAAAAAAQIDBAUREiExQVH/xAAUAQEAAAAAAAAAAAAAAAAAAAAA' +
+  '/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Amu69bYpRjGKlJJerFbSWy' +
+  'AAAAASUVORK5CYII=';
+const thumbnailBuffer = Buffer.from(TINY_JPEG_B64, 'base64');
+
+Bun.serve({
+  port: PORT,
+  async fetch(req) {
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    console.log(`[mock] ${req.method} ${path}${url.search}`);
+
+    // List storage root
+    if (path === '/ccapi/ver100/contents/storage1/card1') {
+      return Response.json({
+        path: ['/ccapi/ver100/contents/storage1/card1/100CANON'],
+      });
+    }
+
+    // List folder
+    if (path === '/ccapi/ver100/contents/storage1/card1/100CANON') {
+      const files = Array.from({ length: shotCounter }, (_, i) => {
+        const n = String(i + 1).padStart(4, '0');
+        return `/ccapi/ver100/contents/storage1/card1/100CANON/IMG_${n}.JPG`;
+      });
+      return Response.json({ path: files });
+    }
+
+    // Thumbnail or original
+    if (path.startsWith('/ccapi/ver100/contents/') && path.endsWith('.JPG')) {
+      const kind = url.searchParams.get('kind') ?? 'thumbnail';
+      if (kind === 'thumbnail') {
+        return new Response(thumbnailBuffer, {
+          headers: { 'Content-Type': 'image/jpeg' },
+        });
+      }
+      // original — return same tiny image for mock purposes
+      return new Response(thumbnailBuffer, {
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    }
+
+    // Long-poll event endpoint
+    if (path === '/ccapi/ver100/event/polling') {
+      return new Promise<Response>((resolve) => {
+        pendingPollers.push({ resolve });
+      });
+    }
+
+    return new Response('Not Found', { status: 404 });
+  },
+});
+
+console.log(`[mock] Canon CCAPI mock server running on http://localhost:${PORT}`);
+console.log(`[mock] Auto-firing shots every ${SHOT_INTERVAL_MS / 1000}s`);
+console.log(`[mock] Press Ctrl+C to stop`);
