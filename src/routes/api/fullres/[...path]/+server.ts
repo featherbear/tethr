@@ -6,8 +6,8 @@ export const GET: RequestHandler = async ({ params }) => {
   const camPath = `/${params.path}`;
 
   try {
-    const res = await cameraFetch(`${camPath}?kind=original`, {
-      signal: AbortSignal.timeout(60_000),
+    const res = await cameraFetch(`${camPath}?kind=display`, {
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) error(res.status, `Camera responded with ${res.status}`);
 

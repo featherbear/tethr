@@ -1,4 +1,4 @@
-export type PhotoState = 'loading' | 'thumbnail' | 'fullres';
+export type PhotoState = 'loading' | 'thumbnail' | 'display' | 'fullres';
 
 export interface ShootingSettings {
   av:           string | null;  // aperture e.g. "f2.8"
@@ -36,7 +36,9 @@ export interface Photo {
   variants: string[];
   hasRaw: boolean;
   thumbnailUrl: string | null;
+  displayUrl: string | null;   // 1620×1080 display-quality JPEG (?kind=display)
   fullresUrl: string | null;
+  displayProgress: number | null; // 0–100 during fetch, null when idle
   state: PhotoState;
   capturedAt: Date;
   /** Shooting settings at capture time — from monitoring stream */
@@ -80,7 +82,9 @@ export const photosStore = (() => {
       variants: [filename],
       hasRaw: RAW_EXTS.has(ext(filename)),
       thumbnailUrl: null,
+      displayUrl: null,
       fullresUrl: null,
+      displayProgress: null,
       state: 'loading',
       capturedAt: new Date(),
       settings,
@@ -92,6 +96,18 @@ export const photosStore = (() => {
   function setThumbnail(id: string, url: string) {
     photos = photos.map(p =>
       p.id === id ? { ...p, thumbnailUrl: url, state: 'thumbnail' } : p
+    );
+  }
+
+  function setDisplay(id: string, url: string) {
+    photos = photos.map(p =>
+      p.id === id ? { ...p, displayUrl: url, displayProgress: null, state: 'display' } : p
+    );
+  }
+
+  function setDisplayProgress(id: string, progress: number) {
+    photos = photos.map(p =>
+      p.id === id ? { ...p, displayProgress: progress } : p
     );
   }
 
@@ -107,6 +123,8 @@ export const photosStore = (() => {
     get photos() { return photos; },
     addOrMerge,
     setThumbnail,
+    setDisplay,
+    setDisplayProgress,
     setFullres,
     clear,
   };

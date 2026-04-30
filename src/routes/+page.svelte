@@ -129,8 +129,44 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
-      photosStore.setFullres(id, url);
     } catch { /* silent */ }
+  }
+
+  // Fetch display-quality image (~340KB JPG) with progress tracking.
+  // Only fetches JPG variants — skip if only RAW available.
+  async function fetchDisplay(id: string) {
+    const photo = photosStore.photos.find(p => p.id === id);
+    if (!photo || photo.displayUrl) return; // already fetched
+
+    // Find the JPG variant — display only works on JPG
+    const jpgVariant = photo.variants.find(v => /\.jpe?g$/i.test(v));
+    if (!jpgVariant) return;
+
+    const camPath = `${photo.dirname}/${jpgVariant}`.replace(/^\//, '');
+    try {
+      photosStore.setDisplayProgress(id, 0);
+      const res = await fetch(`/api/fullres/${camPath}`);
+      if (!res.ok || !res.body) { photosStore.setDisplayProgress(id, 0); return; }
+
+      const contentLength = Number(res.headers.get('Content-Length') ?? 0);
+      const reader = res.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (contentLength > 0) {
+          photosStore.setDisplayProgress(id, Math.round((received / contentLength) * 100));
+        }
+      }
+
+      const blob = new Blob(chunks, { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      photosStore.setDisplay(id, url);
+    } catch { photosStore.setDisplayProgress(id, 0); }
   }
 
   // ---------------------------------------------------------------------------
@@ -157,7 +193,12 @@
     onsettings={() => (showSettings = true)}
   />
   <main class="content">
-    <PhotoGrid photos={photosStore.photos} onopen={(i) => (lightboxIndex = i)} />
+    <PhotoGrid photos={photosStore.photos} onopen={(i) => {
+      lightboxIndex = i;
+      // Start fetching display-quality image when lightbox opens
+      const photo = photosStore.photos[i];
+      if (photo) fetchDisplay(photo.id);
+    }} />
   </main>
 </div>
 
@@ -171,6 +212,7 @@
     initialIndex={lightboxIndex}
     liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
+    onfetchdisplay={(id) => fetchDisplay(id)}
   />
 {/if}
 
