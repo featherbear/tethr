@@ -45,10 +45,13 @@
         fetchQueue.splice(existing, 1);
       }
     }
-    // For display jobs: skip if already queued or loaded
+    // For display jobs: skip if already loaded or already queued
     if (job.type === 'display') {
       const photo = photosStore.photos.find(p => p.id === job.id);
-      if (!photo || photo.displayUrl || photo.displayProgress !== null) return;
+      if (!photo || photo.displayUrl) return;
+      // For on-demand (P.DisplayNow): allow re-queue even if in progress (navigate mid-fetch)
+      // For idle (P.DisplayIdle): skip if already in progress or queued
+      if (job.priority === P.DisplayIdle && photo.displayProgress !== null) return;
       if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
     }
     fetchQueue.push({ ...job, seq } as Job);

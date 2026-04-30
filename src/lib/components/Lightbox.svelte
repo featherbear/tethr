@@ -155,24 +155,27 @@
 
         <!-- Layer 2: new image fades in on top when ready -->
         {#if photo.displayUrl && photo.displayUrl !== renderedUrl}
-          {#key photo.displayUrl}
+          <!-- Capture URL at render time — photo may change before onintroend fires -->
+          {@const capturedUrl = photo.displayUrl}
+          {#key capturedUrl}
             <img
-              src={photo.displayUrl}
+              src={capturedUrl}
               alt={photo.filename}
               class="main-img main-img--top"
               in:fade={{ duration: 300 }}
-              onintroend={() => { renderedUrl = photo.displayUrl; }}
+              onintroend={() => { renderedUrl = capturedUrl; }}
               onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
             />
           {/key}
         {:else if photo.thumbnailUrl && !latestMode && photo.thumbnailUrl !== renderedUrl && !photo.displayUrl}
-          {#key photo.thumbnailUrl}
+          {@const capturedUrl = photo.thumbnailUrl}
+          {#key capturedUrl}
             <img
-              src={photo.thumbnailUrl}
+              src={capturedUrl}
               alt={photo.filename}
               class="main-img main-img--top"
               in:fade={{ duration: 200 }}
-              onintroend={() => { renderedUrl = photo.thumbnailUrl; }}
+              onintroend={() => { renderedUrl = capturedUrl; }}
               onerror={() => { /* leave renderedUrl unchanged — bg layer stays */ }}
             />
           {/key}
