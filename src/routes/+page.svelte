@@ -4,6 +4,7 @@
   import { cameraStore } from '$lib/stores/camera.svelte';
   import { photosStore } from '$lib/stores/photos.svelte';
   import { cameraInfoStore } from '$lib/stores/cameraInfo.svelte';
+  import type { ShootingSettings } from '$lib/stores/photos.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
@@ -12,6 +13,7 @@
   let eventSource: EventSource | null = null;
   let showSettings = $state(false);
   let lightboxIndex = $state<number | null>(null);
+  let liveSettings = $state<ShootingSettings | null>(null);
 
   // Serial thumbnail fetch queue — one request at a time to avoid camera 503s
   type ThumbJob = { id: string; dirname: string; filename: string; priority: number };
@@ -80,12 +82,16 @@
       }
     });
 
+    eventSource.addEventListener('settings', (e) => {
+      liveSettings = JSON.parse(e.data) as ShootingSettings;
+    });
+
     eventSource.addEventListener('shot', (e) => {
-      const { path } = JSON.parse(e.data) as { path: string };
+      const { path, settings } = JSON.parse(e.data) as { path: string; settings: ShootingSettings | null };
       const parts = path.split('/');
       const filename = parts.pop()!;
       const dirname = parts.join('/');
-      const id = photosStore.addOrMerge(dirname, filename);
+      const id = photosStore.addOrMerge(dirname, filename, settings);
       enqueueThumbnail(id, dirname, filename);
     });
 
@@ -146,6 +152,7 @@
     errorMessage={cameraStore.errorMessage}
     shotCount={photosStore.photos.length}
     cameraInfo={cameraInfoStore.info}
+    shootingSettings={liveSettings}
     onsettings={() => (showSettings = true)}
   />
   <main class="content">
@@ -161,6 +168,7 @@
   <Lightbox
     photos={photosStore.photos}
     initialIndex={lightboxIndex}
+    liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
   />
 {/if}

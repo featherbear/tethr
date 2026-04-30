@@ -18,9 +18,22 @@ import { cameraFetch, extractFrames } from './camera';
 
 export type MonitorStatus = 'connecting' | 'live' | 'reconnecting' | 'stopped';
 
+export interface ShootingSettings {
+  av:   string | null;  // aperture, e.g. "f2.8"
+  tv:   string | null;  // shutter speed, e.g. "1/125"
+  iso:  string | null;  // ISO, e.g. "3200"
+  mode: string | null;  // shooting mode dial, e.g. "av", "m", "tv"
+  wb:   string | null;  // white balance, e.g. "auto", "colortemp"
+}
+
 let _status: MonitorStatus = 'stopped';
 let _error: string | null = null;
 let _abortController: AbortController | null = null;
+
+// Latest known shooting settings — updated from monitoring frames
+let _settings: ShootingSettings = { av: null, tv: null, iso: null, mode: null, wb: null };
+
+export function getSettings(): Readonly<ShootingSettings> { return _settings; }
 
 // ---------------------------------------------------------------------------
 // Subscriber fan-out
@@ -33,8 +46,11 @@ const subscribers = new Set<Subscriber>();
 
 export function subscribe(sub: Subscriber): () => void {
   subscribers.add(sub);
-  // Immediately send current status to new subscriber
+  // Immediately send current status and settings to new subscriber
   sub({ type: 'status', data: { status: _status, error: _error } });
+  if (_settings.av || _settings.tv || _settings.iso) {
+    sub({ type: 'settings', data: _settings });
+  }
   return () => subscribers.delete(sub);
 }
 
@@ -101,11 +117,24 @@ async function runLoop(signal: AbortSignal) {
         remainder = newRemainder;
 
         for (const { parsed } of frames) {
+          // Update settings from this frame (partial updates are common)
+          let settingsChanged = false;
+          if (parsed.av)               { _settings = { ..._settings, av:   (parsed.av   as { value: string }).value }; settingsChanged = true; }
+          if (parsed.tv)               { _settings = { ..._settings, tv:   (parsed.tv   as { value: string }).value }; settingsChanged = true; }
+          if (parsed.iso)              { _settings = { ..._settings, iso:  (parsed.iso  as { value: string }).value }; settingsChanged = true; }
+          if (parsed.shootingmodedial) { _settings = { ..._settings, mode: (parsed.shootingmodedial as { value: string }).value }; settingsChanged = true; }
+          if (parsed.wb)               { _settings = { ..._settings, wb:   (parsed.wb   as { value: string }).value }; settingsChanged = true; }
+
+          if (settingsChanged) broadcast('settings', _settings);
+
+          // New photos — attach current settings snapshot to shot event
           if (Array.isArray(parsed.addedcontents)) {
             for (const path of parsed.addedcontents as string[]) {
-              broadcast('shot', { path });
+              broadcast('shot', { path, settings: { ..._settings } });
             }
           }
+
+          // Battery / recordable info updates
           const info: Record<string, unknown> = {};
           if (parsed.battery)    info.battery    = parsed.battery;
           if (parsed.recordable) info.recordable = parsed.recordable;

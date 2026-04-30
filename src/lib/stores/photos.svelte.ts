@@ -1,5 +1,13 @@
 export type PhotoState = 'loading' | 'thumbnail' | 'fullres';
 
+export interface ShootingSettings {
+  av:   string | null;
+  tv:   string | null;
+  iso:  string | null;
+  mode: string | null;
+  wb:   string | null;
+}
+
 /** Canon RAW formats — CR3 (R-series) and CR2 (legacy DSLR) */
 const RAW_EXTS = new Set(['.cr3', '.cr2']);
 
@@ -26,6 +34,8 @@ export interface Photo {
   fullresUrl: string | null;
   state: PhotoState;
   capturedAt: Date;
+  /** Shooting settings at capture time — from monitoring stream */
+  settings: ShootingSettings | null;
 }
 
 export const photosStore = (() => {
@@ -36,7 +46,7 @@ export const photosStore = (() => {
    * If a card with the same stem already exists, add the filename as a variant.
    * Returns the card ID (dirname/stem).
    */
-  function addOrMerge(dirname: string, filename: string): string {
+  function addOrMerge(dirname: string, filename: string, settings: ShootingSettings | null = null): string {
     const cardId = `${dirname}/${stem(filename)}`;
     const existing = photos.find(p => p.id === cardId);
 
@@ -50,6 +60,8 @@ export const photosStore = (() => {
           // Prefer JPG as display filename
           filename: isJpg ? filename : p.filename,
           hasRaw: p.hasRaw || RAW_EXTS.has(ext(filename)),
+          // Keep settings from first arrival
+          settings: p.settings ?? settings,
         });
       }
       return cardId;
@@ -66,6 +78,7 @@ export const photosStore = (() => {
       fullresUrl: null,
       state: 'loading',
       capturedAt: new Date(),
+      settings,
     }, ...photos];
 
     return cardId;
