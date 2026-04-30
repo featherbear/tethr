@@ -25,6 +25,12 @@
 - **Fix:** Guard browser-only functions with `import { browser } from '$app/environment'` and `if (!browser) return` at the top
 - **Prevention:** Any function using `fetch()`, `EventSource`, `localStorage`, or `URL.createObjectURL` must be browser-guarded if reachable from lifecycle hooks
 
+### CCAPI real-time events use ver100/event/monitoring, not ver110/event/polling
+- **Symptom:** ver110/event/polling returns immediately with `{}` (not blocking), flooding the SSE stream with `status:live` events. No shot notifications received.
+- **Root cause:** `ver110/event/polling` is not the blocking streaming endpoint on the R6 Mark II. `ver100/event/monitoring` is the correct endpoint — it streams a persistent binary-framed chunked response containing all camera events including `addedcontents` on new shots.
+- **Fix:** Use `GET /ccapi/ver100/event/monitoring`, stream-read the response body, parse binary frames (magic `ff ffff 00 02 00 00 00` + 4-byte BE length + JSON), and filter for `addedcontents` arrays.
+- **Prevention:** Always verify event endpoint behaviour with `curl --max-time` before implementing. The monitoring endpoint streams continuously; the polling endpoint is for one-shot checks only.
+
 ### CCAPI 503 "Already started" on event polling
 - **Symptom:** `GET /ccapi/ver110/event/polling` returns HTTP 503 with `{"message":"Already started"}`
 - **Root cause:** Camera allows only one active polling session at a time. A previous connection that disconnected without cleanup leaves a stuck session.

@@ -105,33 +105,45 @@ GET /ccapi/ver120/contents/card1/100EOSR6/4E5A7113.CR3?kind=original
 
 ---
 
-### Long-poll for new shot events
+### Real-time event stream (new shots, settings changes)
 
 ```
-GET /ccapi/ver110/event/polling
+GET /ccapi/ver100/event/monitoring
+DELETE /ccapi/ver100/event/monitoring   ← stop/reset session
 ```
 
-**Behaviour:** Blocks until an event occurs (new shot, settings change, etc.).
-Do not set a short timeout — use at least 60s.
+**Behaviour:** Opens a persistent HTTP connection that streams binary-framed JSON chunks continuously. **This is the correct streaming endpoint** — not `ver110/event/polling` (which returns immediately and is not blocking on this camera).
 
-**Response on new shot:**
+**Binary frame format:**
+```
+ff ffff 00 02 00 00 00 [4-byte big-endian length] [JSON bytes]
+```
+
+Each frame contains a JSON object with changed camera state. Only `addedcontents` frames are relevant for Tethr.
+
+**Frame on new shot:**
 ```json
 {
-  "kind": "shotnotification",
-  "value": {
-    "path": "/ccapi/ver120/contents/card1/100EOSR6/4E5A7114.CR3"
-  }
+  "addedcontents": ["/ccapi/ver120/contents/card1/100EOSR6/4E5A7114.CR3"]
 }
 ```
 
-⚠️ The `value` contains a single `path` field (not separate `dirname`/`filename`).
-Tethr's SSE route normalises this: splits on `/`, pops the filename, sends `{ dirname, filename }` to the frontend.
+**Other frame types** (ignored by Tethr): `av`, `tv`, `iso`, `recordable`, `effective_value_av`, etc. — camera settings that change continuously.
 
-After receiving a response, immediately re-issue the request to continue receiving events.
+**Empty frame** (heartbeat / no-op):
+```json
+{}
+```
 
-**Error handling:**
-- On network error or non-200: exponential back-off (1s → 2s → 4s … max 30s), then retry
-- The SSE route handles this transparently — the frontend sees `status: reconnecting`
+**Tethr SSE route behaviour:**
+1. DELETE any existing session (both `ver100/event/monitoring` and `ver110/event/polling`)
+2. GET monitoring stream, read body as streaming bytes
+3. Parse binary frames from accumulated buffer
+4. On `addedcontents`: split path → `dirname` + `filename`, emit `shot` SSE event
+5. On stream end or error: exponential back-off (1s → max 30s), DELETE + reconnect
+6. On client disconnect: DELETE to release camera session immediately
+
+⚠️ Camera allows **only one** active monitoring session — a stuck session causes HTTP 503 on reconnect. Always DELETE before starting.
 
 ---
 
