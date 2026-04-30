@@ -2,6 +2,7 @@
   import type { ConnectionStatus } from '$lib/stores/camera.svelte';
   import type { CameraInfo } from '$lib/stores/cameraInfo.svelte';
   import type { ShootingSettings } from '$lib/stores/photos.svelte';
+  import { formatExposure } from '$lib/formatters';
 
   interface Props {
     status: ConnectionStatus;
@@ -97,7 +98,7 @@
           {#if shootingSettings.av}<span class="setting">{shootingSettings.av}</span>{/if}
           {#if shootingSettings.tv}<span class="setting">{shootingSettings.tv}</span>{/if}
           {#if shootingSettings.iso}<span class="setting">ISO {shootingSettings.iso}</span>{/if}
-          {#if shootingSettings.exposure && shootingSettings.exposure !== '+0.0'}<span class="setting exp">{shootingSettings.exposure.replace('_', ' ')}</span>{/if}
+          {#if formatExposure(shootingSettings.exposure)}<span class="setting exp">{formatExposure(shootingSettings.exposure)}</span>{/if}
           {#if shootingSettings.drive && shootingSettings.drive !== 'single'}<span class="setting drive">{driveLabel(shootingSettings.drive)}</span>{/if}
         </div>
       {/if}

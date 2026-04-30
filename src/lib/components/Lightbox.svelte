@@ -2,6 +2,7 @@
   import { fly, fade } from 'svelte/transition';
   import { untrack } from 'svelte';
   import type { Photo, ShootingSettings } from '$lib/stores/photos.svelte';
+  import { formatExposure } from '$lib/formatters';
 
   interface Props {
     photos: Photo[];
@@ -157,8 +158,8 @@
           {#if displaySettings.av}<span class="exif">{displaySettings.av}</span>{/if}
           {#if displaySettings.tv}<span class="exif">{displaySettings.tv}</span>{/if}
           {#if displaySettings.iso}<span class="exif">ISO {displaySettings.iso}</span>{/if}
-          {#if displaySettings.exposure && displaySettings.exposure !== '+0.0'}
-            <span class="exif exif--dim">{displaySettings.exposure.replace('_', ' ')} EV</span>
+          {#if formatExposure(displaySettings.exposure)}
+            <span class="exif exif--dim">{formatExposure(displaySettings.exposure)} EV</span>
           {/if}
         {/if}
         {#if displaySettings?.metering || displaySettings?.wb || displaySettings?.afoperation}
