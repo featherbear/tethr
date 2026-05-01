@@ -121,22 +121,21 @@ async function downloadBun(platform, arch) {
   return { binPath: bunBin, tmpDir };
 }
 
-// ── Universal macOS: download arm64 + x64, lipo together ──────────────────
+// ── Universal macOS: Tauri lipo's the slices itself — just provide both ───
+// When building universal-apple-darwin, Tauri compiles aarch64 and x86_64
+// separately and expects individual sidecar binaries for each triple.
 if (nodePlatform === 'darwin' && nodeArch === 'universal') {
-  const destPath = join(destDir, `bun-server-universal-apple-darwin`);
-  console.log('📦  Downloading Bun binaries for universal macOS build...');
+  console.log('📦  Downloading Bun binaries for universal macOS build (arm64 + x64)...');
 
-  const arm64 = await downloadBun('darwin', 'arm64');
-  const x64   = await downloadBun('darwin', 'x64');
-
-  execSync(`lipo -create "${arm64.binPath}" "${x64.binPath}" -output "${destPath}"`, { stdio: 'inherit' });
-  chmodSync(destPath, 0o755);
-
-  rmSync(arm64.tmpDir, { recursive: true, force: true });
-  rmSync(x64.tmpDir,   { recursive: true, force: true });
-
-  const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-  console.log(`✅  Sidecar ready: bun-server-universal-apple-darwin (${sizeMB}MB)`);
+  for (const [arch, triple] of [['arm64', 'aarch64-apple-darwin'], ['x64', 'x86_64-apple-darwin']]) {
+    const destPath = join(destDir, `bun-server-${triple}`);
+    const { binPath, tmpDir } = await downloadBun('darwin', arch);
+    renameSync(binPath, destPath);
+    chmodSync(destPath, 0o755);
+    rmSync(tmpDir, { recursive: true, force: true });
+    const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
+    console.log(`✅  bun-server-${triple} (${sizeMB}MB)`);
+  }
   process.exit(0);
 }
 
