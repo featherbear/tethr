@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ── macOS ──────────────────────────────────────────────────────────
           - platform: macos-latest
             rust-target: aarch64-apple-darwin
             tauri-args: '--target aarch64-apple-darwin --bundles app'
@@ -22,15 +23,29 @@ jobs:
             tauri-args: '--target x86_64-apple-darwin --bundles app'
             label: macos-x86_64
 
+          # ── Linux ──────────────────────────────────────────────────────────
           - platform: ubuntu-22.04
             rust-target: ''
-            tauri-args: '--bundles appimage,deb'
+            tauri-args: '--bundles appimage'
             label: linux-x86_64
 
+          - platform: ubuntu-24.04-arm
+            rust-target: aarch64-unknown-linux-gnu
+            tauri-args: '--bundles appimage'
+            label: linux-arm64
+
+          # ── Windows ────────────────────────────────────────────────────────
           - platform: windows-latest
             rust-target: ''
             tauri-args: '--bundles nsis'
             label: windows-x86_64
+            portable: true
+
+          - platform: windows-11-arm
+            rust-target: aarch64-pc-windows-msvc
+            tauri-args: '--bundles nsis'
+            label: windows-arm64
+            portable: true
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -54,13 +69,14 @@ jobs:
         with:
           targets: ${{ matrix.rust-target }}
 
-      - name: Cache Rust build
+      - name: Cache Rust build (x86_64 only — cache action not arm64 compatible)
+        if: ${{ !contains(matrix.label, 'arm64') }}
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -72,44 +88,57 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install
 
-      - name: Build Tauri app
+      # Use tauri-action for x86_64 platforms (community action, may not work on arm64)
+      - name: Build Tauri app (via tauri-action)
+        if: ${{ !contains(matrix.label, 'arm64') }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: tethr ${{ github.ref_name }}
-          releaseBody: |
-            ## Downloads
-
-            | Platform | File |
-            |---|---|
-            | macOS (Apple Silicon) | `tethr_*_aarch64.dmg` |
-            | macOS (Intel) | `tethr_*_x64.dmg` |
-            | Windows (installer) | `tethr_*_x64-setup.exe` |
-            | Windows (portable) | `tethr-*-windows-portable.zip` |
-            | Linux (AppImage) | `tethr_*_amd64.AppImage` |
-            | Linux (deb) | `tethr_*_amd64.deb` |
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.tauri-args }}
 
-      # Windows: also upload a portable zip (raw .exe, no installation required)
-      - name: Create Windows portable zip
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          $version = "${{ github.ref_name }}" -replace '^v', ''
-          $exePath = "src-tauri\target\release\tethr.exe"
-          $zipName = "tethr-${{ github.ref_name }}-windows-portable.zip"
-          Compress-Archive -Path $exePath -DestinationPath $zipName
-          echo "ZIP_PATH=$zipName" >> $env:GITHUB_ENV
+      # For arm64 platforms, install Tauri CLI manually and upload artifacts ourselves
+      - name: Build Tauri app (arm64 — manual CLI)
+        if: ${{ contains(matrix.label, 'arm64') }}
+        run: pnpm tauri build ${{ matrix.tauri-args }}
 
-      - name: Upload Windows portable zip to release
-        if: matrix.platform == 'windows-latest'
+      - name: Upload arm64 artifacts to release
+        if: ${{ contains(matrix.label, 'arm64') }}
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          tag_name: ${{ github.ref_name }}
+          files: |
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*-setup.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Windows: also upload a portable zip (raw .exe, no installation required)
+      - name: Create Windows portable zip
+        if: matrix.portable
+        shell: pwsh
+        run: |
+          $exe = if ("${{ matrix.label }}" -eq "windows-arm64") {
+            "src-tauri\target\aarch64-pc-windows-msvc\release\tethr.exe"
+          } else {
+            "src-tauri\target\release\tethr.exe"
+          }
+          $zipName = "tethr-${{ github.ref_name }}-${{ matrix.label }}-portable.zip"
+          Compress-Archive -Path $exe -DestinationPath $zipName
+          echo "ZIP_PATH=$zipName" >> $env:GITHUB_ENV
+
+      - name: Upload Windows portable zip to release
+        if: matrix.portable
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_name }}
           files: ${{ env.ZIP_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
