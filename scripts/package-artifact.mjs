@@ -37,12 +37,20 @@ if (os === 'darwin') {
   dest = join(root, `tethr-${tag}-${label}.zip`);
   execSync(`ditto -c -k --keepParent "${appPath}" "${dest}"`, { stdio: 'inherit' });
 } else if (os === 'linux') {
-  // Linux: find and rename the .AppImage
+  // Linux: prefer AppImage, fall back to deb
   const appimageDir = join(bundleBase, 'appimage');
-  src = readdirSync(appimageDir).find(f => f.endsWith('.AppImage'));
-  if (!src) throw new Error('No .AppImage found in ' + appimageDir);
-  dest = join(root, `tethr-${tag}-${label}.AppImage`);
-  renameSync(join(appimageDir, src), dest);
+  const debDir = join(bundleBase, 'deb');
+  let appImage = null;
+  try { appImage = readdirSync(appimageDir).find(f => f.endsWith('.AppImage')); } catch {}
+  if (appImage) {
+    dest = join(root, `tethr-${tag}-${label}.AppImage`);
+    renameSync(join(appimageDir, appImage), dest);
+  } else {
+    const deb = readdirSync(debDir).find(f => f.endsWith('.deb'));
+    if (!deb) throw new Error('No .AppImage or .deb found in bundle output');
+    dest = join(root, `tethr-${tag}-${label}.deb`);
+    renameSync(join(debDir, deb), dest);
+  }
 } else if (os === 'win32') {
   // Windows: find the NSIS installer produced by Tauri and rename it
   const nsisDir = join(bundleBase.replace('release\\bundle', 'release\\bundle'), '..', 'nsis');
