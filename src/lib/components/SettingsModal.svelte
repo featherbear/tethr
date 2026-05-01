@@ -9,6 +9,7 @@
   let useHttps = $state(false);
   let saving   = $state(false);
   let loaded   = $state(false);
+  let error    = $state<string | null>(null);
 
   // Load current config on mount
   $effect(() => {
@@ -36,13 +37,25 @@
 
   async function save() {
     saving = true;
+    error = null;
     try {
-      await fetch('/api/camera', {
+      const res = await fetch('/api/camera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip, port, https: useHttps }),
       });
+      if (res.status === 422) {
+        const body = await res.json() as { error?: string };
+        error = body.error ?? 'No Canon camera found at that address.';
+        return;
+      }
+      if (!res.ok) {
+        error = 'Failed to save settings. Please try again.';
+        return;
+      }
       onclose();
+    } catch {
+      error = 'Could not connect to the server. Please try again.';
     } finally {
       saving = false;
     }
@@ -89,6 +102,10 @@
         <p class="hint">
           Changes will cause the server to reconnect to the camera immediately.
         </p>
+
+        {#if error}
+          <p class="error">{error}</p>
+        {/if}
       </div>
 
       <div class="modal__footer">
@@ -204,6 +221,16 @@
   .hint {
     font-size: 0.75rem;
     color: #4b5563;
+    margin: 0;
+  }
+
+  .error {
+    font-size: 0.8rem;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
     margin: 0;
   }
 
