@@ -23,7 +23,7 @@ Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control 
 
 - macOS, Windows, or Linux
 - Canon camera with CCAPI enabled, connected to the same WiFi network
-- Node.js ≥ 18
+- Node.js ≥ 22 (24 recommended)
 - [pnpm](https://pnpm.io) (`npm install -g pnpm`)
 - Rust + Cargo (via [rustup](https://rustup.rs)) — only needed for Tauri builds
 
