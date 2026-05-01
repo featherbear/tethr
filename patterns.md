@@ -103,6 +103,32 @@
 - **Fix:** On any fetch failure or catch, set `displayProgress = null` to return to "idle" state, allowing retries and clearing shimmer indicators.
 - **Prevention:** Treat `null` as "not started/idle" and any number (including 0) as "in progress". Always reset to `null` in error/catch paths, never to a number.
 
+### Blocking camera fetch before setStatus('live') causes stuck 'connecting' state
+- **Symptom:** UI stays on "Connecting" indefinitely even though camera is reachable (e.g. `/api/camera/info` returns data)
+- **Root cause:** The monitor loop fetched initial shooting settings via `cameraFetch()` (serial queue) *before* calling `setStatus('live')`. If the queue was busy or the settings endpoint was slow/404, `setStatus('live')` was never reached and the UI stayed in `'connecting'`.
+- **Fix:** Call `setStatus('live')` immediately after the monitoring stream opens. Settings (av, tv, iso, etc.) arrive naturally from the first monitoring stream frames — no separate fetch needed.
+- **Prevention:** Never `await` non-critical camera requests between "stream is open" and `setStatus('live')`. Never add a camera fetch without first probing the endpoint with `curl` to confirm it exists.
+
+### R50 monitoring session stays stuck after disconnect (503 "Already started" loop)
+- **Symptom:** App loops between "Connecting" and "live". Camera returns 503 "Already started" even after DELETE succeeds (200 `{}`). `/api/camera/info` called repeatedly.
+- **Root cause:** Camera holds monitoring slot until TCP connection is fully closed. Leftover Node keep-alive connections keep it open. After the process dies, camera firmware still needs time to GC the slot internally. DELETE returns 200 but slot isn't immediately free.
+- **Fix:** `stopExistingSession()` now polls `cameraFetchRaw(MONITOR_PATH)` + immediate abort every 1s after DELETE, confirming the camera returns non-503 before the outer loop retries. Up to 4 attempts (~4s).
+- **Diagnosis:** `lsof -i @<camera-ip>` shows leftover ESTABLISHED connections from stale node processes. Kill them with `kill -9 $(lsof -ti @<camera-ip>)`.
+- **Prevention:** Always kill dev server cleanly; `Connection: close` header on the monitoring stream helps but isn't sufficient on its own.
+- **Note:** `/ccapi/ver100/shooting/settings` **does exist** on both the R6 Mark II and EOS R50 — returns all shooting settings as `{ key: { value, ability[] } }`. The 404 was a transient error. Always probe with `curl` before concluding an endpoint doesn't exist.
+
+### PhotoCard must render `displayUrl`, not just `fullresUrl`
+- **Symptom:** Thumbnail never upgrades to HD on the main grid; badge stays "Preview" forever even after idle prefetch completes
+- **Root cause:** The fetch pipeline calls `photosStore.setDisplay()` → sets `displayUrl`. But `PhotoCard` only checked `photo.fullresUrl` for the HD image layer. `displayUrl` was fetched and stored but never rendered.
+- **Fix:** Add an `img--display` layer in the card that shows `photo.displayUrl` when `fullresUrl` is absent. Hide the thumbnail when either `displayUrl` or `fullresUrl` is set.
+- **Prevention:** When adding a new URL field to the photo store, always trace through to the rendering layer and confirm it's actually displayed.
+
+### Tauri DMG bundling requires `create-dmg` to be installed
+- **Symptom:** `pnpm tauri build` succeeds through Rust compile and `.app` bundling, then fails at DMG with `failed to run bundle_dmg.sh`
+- **Root cause:** Tauri's DMG bundler delegates to `create-dmg` (a Homebrew tool). If it's not installed, the script exits with "Not enough arguments".
+- **Fix:** Either install `create-dmg` via `brew install create-dmg`, or set `"targets": ["app"]` in `tauri.conf.json` to skip DMG generation.
+- **Prevention:** On a fresh machine, run `brew install create-dmg` before attempting `tauri build` with DMG targets.
+
 ### `onintroend` closures capture reactive variables at callback time, not render time
 - **Symptom:** `onintroend` updates the wrong state — it uses a value that has changed since the element was mounted
 - **Root cause:** `onintroend` is a closure that captures reactive variables by reference. If `photo` or another reactive value changes before the transition ends, the callback reads the new value, not the original.

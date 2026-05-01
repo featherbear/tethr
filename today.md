@@ -6,8 +6,7 @@
 
 ## Last Updated
 
-2026-05-01 — Shot events verified working end-to-end from live R6 Mark II.
-Binary frame parser rewritten from scratch after probing actual wire format.
+2026-05-01 — Sidecar wiring complete. `.app` is fully self-contained with Node binary + build/.
 
 ---
 
@@ -16,6 +15,22 @@ Binary frame parser rewritten from scratch after probing actual wire format.
 - Refined AGENTS.md into a lean router (<50 lines)
 - Created `docs/architecture.md`, `docs/ccapi-endpoints.md`, `patterns.md`
 - Decided on final architecture and build plan (see below)
+- Verified Tauri release build: `pnpm check` ✅, `pnpm build` ✅, `pnpm tauri build` ✅
+- Fixed: Rust not on PATH → source `~/.cargo/env` (already installed via rustup)
+- Fixed: DMG bundling requires `create-dmg` (not installed) → set `targets: ["app"]` in `tauri.conf.json`
+- Fixed: unused `use tauri::Manager` import in `lib.rs`
+- **Sidecar wiring complete:**
+  - Copied Node binary → `src-tauri/binaries/node-server-aarch64-apple-darwin`
+  - Added `externalBin` + `resources: {"../build": "build"}` to `tauri.conf.json`
+  - Added `shell:allow-execute` + `shell:allow-spawn` to capabilities
+  - Rewrote `lib.rs`: spawns sidecar with `build/index.js`, polls `localhost:3000` (40×250ms), then creates WebView window
+  - Added `ureq = "2"` to `Cargo.toml` for HTTP health-check
+  - Verified: `Contents/MacOS/node-server` (112MB) + `Contents/Resources/build/` both present in `.app`
+- **First-launch onboarding modal:**
+  - New `OnboardingModal.svelte` — full-screen prompt on first run asking for camera IP/port/protocol
+  - Gated by `localStorage.getItem('camera_configured')` — shown only once, dismissed after connect
+  - SSE stream deferred until after onboarding completes
+- **Bundle ID** changed to `cc.featherbear.tethr`
 
 ---
 
@@ -46,7 +61,9 @@ Binary frame parser rewritten from scratch after probing actual wire format.
 
 1. **Test with mock** — run `pnpm dev:mock` in `tethr/` and open http://localhost:1420; shots should auto-fire every 5s
 2. **Test with real camera** — set `CCAPI_BASE_URL=http://<camera-ip>:8080 pnpm dev` or enter IP in the UI and click Connect
-3. **Tauri production bundle** — `pnpm tauri build` to generate the macOS `.app`; sidecar Node binary still needs to be bundled (see docs/architecture.md)
+3. **Smoke-test the `.app`** — double-click `src-tauri/target/release/bundle/macos/tethr.app` and verify the window opens and connects to the local Node server
+4. **Test with real camera** — set `CCAPI_BASE_URL=http://<camera-ip>:8080 pnpm dev` or enter IP in the UI and click Connect
+5. **DMG** — install `create-dmg` via `brew install create-dmg` and change `targets` back to `["app", "dmg"]` when ready to distribute
 
 ---
 

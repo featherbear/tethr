@@ -147,6 +147,84 @@ Each frame contains a JSON object with changed camera state. Only `addedcontents
 
 ---
 
+### Shooting settings (all at once)
+
+```
+GET /ccapi/ver100/shooting/settings
+```
+
+**Verified on:** R6 Mark II, EOS R50
+
+**Response:** JSON object with all current shooting settings. Each key maps to `{ value, ability[] }`:
+
+```json
+{
+  "shootingmodedial": { "value": "m", "ability": ["m"] },
+  "av":               { "value": "f3.2", "ability": ["f2.8", "f3.2", ...] },
+  "tv":               { "value": "1/60",  "ability": [...] },
+  "iso":              { "value": "3200",  "ability": ["auto", "100", ...] },
+  "exposure":         { "value": "+0.0",  "ability": [...] },
+  "wb":               { "value": "auto",  "ability": [...] },
+  "colortemperature": { "value": 5500,    "ability": [...] },
+  "afoperation":      { "value": "oneshot", "ability": [...] },
+  "metering":         { "value": "evaluative", "ability": [...] },
+  "drive":            { "value": "single", "ability": [...] }
+}
+```
+
+Used by Tethr to populate the status bar immediately on connect (background fetch after monitoring stream opens).
+
+---
+
+### Battery status
+
+```
+GET /ccapi/ver100/devicestatus/battery
+```
+
+**Verified on:** R6 Mark II, EOS R50
+
+**Response:**
+```json
+{
+  "kind":    "battery",     // "battery" | "ac_adapter" | "dc_coupler" | "batterygrip" | "not_inserted" | "unknown"
+  "name":    "LP-E6NH",     // Battery name or "unknown"
+  "level":   "quarter",     // "full" | "high" | "half" | "quarter" | "low" | "exhausted" | "charge" | "chargestop" | "chargecomp" | "none" | "unknown"
+  "quality": "normal"       // "good" | "normal" | "bad" | "unknown"
+}
+```
+
+Note: When AC adapter is connected (R50 with DR-E18), `kind` is `"ac_adapter"` and `level`/`quality` are empty strings.
+
+### Battery list (preferred)
+
+```
+GET /ccapi/ver110/devicestatus/batterylist
+```
+
+**Verified on:** R6 Mark II, EOS R50
+
+Returns numeric percentage for `level` — more precise than the named levels from `battery`. Use this when available and fall back to `battery` (ver100) if it returns non-200.
+
+**Response:**
+```json
+{
+  "batterylist": [
+    {
+      "position": "camera",
+      "kind":     "battery",
+      "name":     "LP-E6NH",
+      "quality":  "normal",
+      "level":    "14"
+    }
+  ]
+}
+```
+
+Note: `level` is a numeric string (percentage `"0"`–`"100"`), or `""` for AC adapter.
+
+---
+
 ### Storage status
 
 ```
