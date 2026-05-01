@@ -35,6 +35,9 @@ Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control 
 # Install dependencies
 pnpm install
 
+# Set up the Tauri sidecar (required for pnpm tauri build, not needed for pnpm dev)
+pnpm sidecar
+
 # Start the dev server (Vite, port 1420)
 CCAPI_BASE_URL=http://<camera-ip>:8080 pnpm dev
 
@@ -60,6 +63,7 @@ pnpm tauri dev
 | `pnpm build` | Build SvelteKit output (`build/`) |
 | `pnpm tauri dev` | Open Tauri native window (dev mode) |
 | `pnpm tauri build` | Bundle production `.app` |
+| `pnpm sidecar` | Copy Node binary into `src-tauri/binaries/` (required before `tauri build`) |
 
 ---
 
