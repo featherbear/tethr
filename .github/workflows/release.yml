@@ -28,7 +28,11 @@ jobs:
         include:
           - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app      }
           - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,      bundles: appimage }
-          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
+          # linux-arm64: tauri-apps/binary-releases ships an outdated linuxdeploy-aarch64.AppImage
+          # (build #5, 2024-07-24) which crashes with std::runtime_error when ldd fails on the
+          # Bun static binary. The x86_64 version (build #10, 2024-07-26) handles this correctly.
+          # Disabled until the upstream binary release is updated.
+          # - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
           - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,      bundles: nsis     }
           - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,    bundles: nsis     }
 
