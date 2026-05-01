@@ -44,13 +44,14 @@ if (os === 'darwin') {
   dest = join(root, `tethr-${tag}-${label}.AppImage`);
   renameSync(join(appimageDir, src), dest);
 } else if (os === 'win32') {
-  // Windows: zip the raw .exe (portable, no installer)
-  const exePath = join(root, 'src-tauri', 'target', 'release', 'tethr.exe');
-  dest = join(root, `tethr-${tag}-${label}.zip`);
-  execSync(
-    `powershell -Command "Compress-Archive -Path '${exePath}' -DestinationPath '${dest}' -Force"`,
-    { stdio: 'inherit' }
-  );
+  // Windows: find the NSIS installer produced by Tauri and rename it
+  const nsisDir = join(bundleBase.replace('release\\bundle', 'release\\bundle'), '..', 'nsis');
+  const nsisAlt = join(root, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
+  const searchDir = nsisAlt;
+  const setupExe = readdirSync(searchDir).find(f => f.endsWith('.exe'));
+  if (!setupExe) throw new Error('No NSIS .exe found in ' + searchDir);
+  dest = join(root, `tethr-${tag}-${label}.exe`);
+  renameSync(join(searchDir, setupExe), dest);
 } else {
   console.error(`❌  Unsupported OS: ${os}`);
   process.exit(1);

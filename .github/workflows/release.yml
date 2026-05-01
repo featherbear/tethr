@@ -26,11 +26,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, node-platform: darwin, node-arch: universal, bundles: app      }
-          - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    node-platform: linux,  node-arch: x64,       bundles: appimage }
-          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    node-platform: linux,  node-arch: arm64,      bundles: appimage }
-          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    node-platform: win,    node-arch: x64,        bundles: nsis     }
-          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    node-platform: win,    node-arch: arm64,       bundles: nsis     }
+          - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app      }
+          - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,      bundles: appimage }
+          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
+          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,      bundles: nsis     }
+          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,    bundles: nsis     }
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -49,7 +49,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust-target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.rust-target }}
+          targets: ${{ matrix.rust-targets }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -69,6 +69,10 @@ jobs:
       - name: Build
         shell: bash
         run: |
+          echo "--- sidecar binaries ---"
+          ls -lh src-tauri/binaries/
+          echo "--- build dir ---"
+          ls build/ 2>/dev/null || echo "(build/ not yet present — will be created by beforeBuildCommand)"
           ARGS="--bundles ${{ matrix.bundles }}"
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
           pnpm tauri build $ARGS
