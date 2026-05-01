@@ -67,21 +67,6 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils \
             libfuse2
 
-      - name: Override linuxdeploy with newer build (linux-arm64)
-        if: matrix.label == 'linux-arm64'
-        run: |
-          # The linuxdeploy-aarch64 in tauri-apps/binary-releases is build #5 (2024-07-24)
-          # which crashes when ldd fails on static binaries (e.g. Bun). Use a newer upstream
-          # build that handles ldd failures gracefully.
-          mkdir -p ~/.cache/tauri
-          curl -L \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-aarch64.AppImage \
-            -o ~/.cache/tauri/linuxdeploy-aarch64.AppImage
-          chmod +x ~/.cache/tauri/linuxdeploy-aarch64.AppImage
-          # Disable FUSE (no fusermount in CI containers) — Tauri does this for its bundled copy
-          dd if=/dev/zero bs=1 count=3 seek=8 conv=notrunc of=~/.cache/tauri/linuxdeploy-aarch64.AppImage
-          ls -lh ~/.cache/tauri/linuxdeploy-aarch64.AppImage
-
       - run: pnpm install
 
       - name: Build SvelteKit
