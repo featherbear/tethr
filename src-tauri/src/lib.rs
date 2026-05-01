@@ -32,8 +32,9 @@ pub fn run() {
                     .resource_dir()
                     .expect("could not resolve resource dir");
 
-                // bun-server and build/ are both shipped as resources
-                let bun_bin = resource_dir.join("bun-server");
+                // bun-server is embedded inside build/ (to avoid linuxdeploy ldd)
+                let bun_name = if cfg!(windows) { "bun-server.exe" } else { "bun-server" };
+                let bun_bin = resource_dir.join("build").join(bun_name);
                 let index_js = resource_dir.join("build/index.js");
 
                 // Ensure the bun binary is executable (resources may lose +x on some platforms)

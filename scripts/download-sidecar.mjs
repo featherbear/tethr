@@ -61,6 +61,22 @@ const suffix = isWin ? '.exe' : '';
 
 mkdirSync(destDir, { recursive: true });
 
+// Copy the Bun binary into build/ so it's included in the 'build' resource
+// This avoids needing a separate resource entry and sidesteps linuxdeploy ldd.
+function copyToBuildDir(binPath, isWin) {
+  const buildDir = join(root, 'build');
+  const ext = isWin ? '.exe' : '';
+  const dest = join(buildDir, `bun-server${ext}`);
+  mkdirSync(buildDir, { recursive: true });
+  if (isWin) {
+    execSync(`copy /Y "${binPath}" "${dest}"`, { stdio: 'inherit', shell: true });
+  } else {
+    execSync(`cp "${binPath}" "${dest}"`, { stdio: 'inherit' });
+    chmodSync(dest, 0o755);
+  }
+  console.log(`✅  Copied to build/bun-server${ext}`);
+}
+
 // Follow redirects and return the response stream
 function download(url) {
   return new Promise((resolve, reject) => {
@@ -139,25 +155,22 @@ if (nodePlatform === 'darwin' && nodeArch === 'universal') {
     console.log(`✅  bun-server-${triple} (${sizeMB}MB)`);
   }
 
-  // Create universal binary via lipo — also used as plain 'bun-server' resource
+  // Create universal binary via lipo
   const universalPath = join(destDir, 'bun-server-universal-apple-darwin');
-  const plainPath = join(destDir, 'bun-server');
   execSync(
     `lipo -create "${paths['aarch64-apple-darwin']}" "${paths['x86_64-apple-darwin']}" -output "${universalPath}"`,
     { stdio: 'inherit' }
   );
   chmodSync(universalPath, 0o755);
-  // Copy as plain 'bun-server' for resource bundling
-  execSync(`cp "${universalPath}" "${plainPath}"`, { stdio: 'inherit' });
+  copyToBuildDir(universalPath, false);
   const sizeMB = (statSync(universalPath).size / 1024 / 1024).toFixed(0);
-  console.log(`✅  bun-server-universal-apple-darwin + bun-server (${sizeMB}MB)`);
+  console.log(`✅  bun-server-universal-apple-darwin (${sizeMB}MB)`);
   process.exit(0);
 }
 
 // ── Single platform ────────────────────────────────────────────────────────
 const destName = `bun-server-${triple}${suffix}`;
 const destPath = join(destDir, destName);
-const plainPath = join(destDir, `bun-server${suffix}`);
 
 console.log(`📦  Downloading Bun for ${key} → ${triple}`);
 
@@ -167,16 +180,11 @@ rmSync(tmpDir, { recursive: true, force: true });
 
 if (!isWin) chmodSync(destPath, 0o755);
 
-// Also copy as plain 'bun-server' for resource bundling
-if (isWin) {
-  execSync(`copy /Y "${destPath}" "${plainPath}"`, { stdio: 'inherit', shell: true });
-} else {
-  execSync(`cp "${destPath}" "${plainPath}"`, { stdio: 'inherit' });
-  chmodSync(plainPath, 0o755);
-}
+// Copy into build/ so it's bundled as a resource (avoids linuxdeploy ldd)
+copyToBuildDir(destPath, isWin);
 
 const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-console.log(`✅  Sidecar ready: ${destName} + bun-server (${sizeMB}MB)`);
+console.log(`✅  Sidecar ready: ${destName} (${sizeMB}MB)`);
 
 // Write artifact path to GITHUB_ENV if in CI
 const envFile = process.env.GITHUB_ENV;
