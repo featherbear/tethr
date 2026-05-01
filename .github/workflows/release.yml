@@ -7,7 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release-id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create draft release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: tethr ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -40,12 +58,14 @@ jobs:
             tauri-args: '--bundles nsis'
             label: windows-x86_64
             portable: true
+            skip-tauri-action: true
 
           - platform: windows-11-arm
             rust-target: ''
             tauri-args: '--bundles nsis'
             label: windows-arm64
             portable: true
+            skip-tauri-action: true
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -87,7 +107,8 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install
 
-      - name: Build Tauri app
+      - name: Build Tauri app (via tauri-action — non-Windows)
+        if: ${{ !matrix.skip-tauri-action }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,6 +118,10 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.tauri-args }}
+
+      - name: Build Tauri app (Windows — manual, portable zip only)
+        if: ${{ matrix.skip-tauri-action }}
+        run: pnpm tauri build ${{ matrix.tauri-args }}
 
       # Windows: also upload a portable zip (raw .exe, no installation required)
       - name: Create Windows portable zip
