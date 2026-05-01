@@ -127,15 +127,27 @@ async function downloadBun(platform, arch) {
 if (nodePlatform === 'darwin' && nodeArch === 'universal') {
   console.log('📦  Downloading Bun binaries for universal macOS build (arm64 + x64)...');
 
+  const paths = {};
   for (const [arch, triple] of [['arm64', 'aarch64-apple-darwin'], ['x64', 'x86_64-apple-darwin']]) {
     const destPath = join(destDir, `bun-server-${triple}`);
     const { binPath, tmpDir } = await downloadBun('darwin', arch);
     renameSync(binPath, destPath);
     chmodSync(destPath, 0o755);
     rmSync(tmpDir, { recursive: true, force: true });
+    paths[triple] = destPath;
     const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
     console.log(`✅  bun-server-${triple} (${sizeMB}MB)`);
   }
+
+  // Also create the universal binary — Tauri needs it for the bundle step
+  const universalPath = join(destDir, 'bun-server-universal-apple-darwin');
+  execSync(
+    `lipo -create "${paths['aarch64-apple-darwin']}" "${paths['x86_64-apple-darwin']}" -output "${universalPath}"`,
+    { stdio: 'inherit' }
+  );
+  chmodSync(universalPath, 0o755);
+  const sizeMB = (statSync(universalPath).size / 1024 / 1024).toFixed(0);
+  console.log(`✅  bun-server-universal-apple-darwin (${sizeMB}MB)`);
   process.exit(0);
 }
 
