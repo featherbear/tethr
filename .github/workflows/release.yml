@@ -68,6 +68,8 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           echo "--- sidecar binaries ---"
           ls -lh src-tauri/binaries/
