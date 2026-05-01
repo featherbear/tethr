@@ -78,16 +78,16 @@ jobs:
       - name: Build
         shell: bash
         env:
+          # APPIMAGE_EXTRACT_AND_RUN: GitHub runners can't mount FUSE; tell linuxdeploy
+          #   and appimagetool to extract their AppImage and run from disk instead
+          # NO_STRIP: linuxdeploy's strip step crashes on Bun's statically-linked binary;
+          #   skip it for safety on all Linux jobs (no-op on Windows/macOS jobs)
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: 1
         run: |
-          echo "--- sidecar binaries ---"
-          ls -lh src-tauri/binaries/
-          echo "--- build dir ---"
-          ls build/ 2>/dev/null || echo "(build/ not yet present — will be created by beforeBuildCommand)"
           ARGS="--bundles ${{ matrix.bundles }}"
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
-          pnpm tauri build $ARGS --verbose 2>&1 | tee /tmp/tauri-build.log || (tail -200 /tmp/tauri-build.log && exit 1)
+          pnpm tauri build $ARGS
 
       - name: Package artifact
         run: node scripts/package-artifact.mjs ${{ matrix.label }} ${{ github.ref_name }} ${{ matrix.rust-target }}
