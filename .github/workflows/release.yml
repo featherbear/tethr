@@ -65,6 +65,9 @@ jobs:
 
       - run: pnpm install
 
+      - name: Build SvelteKit
+        run: pnpm build
+
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }}
 
