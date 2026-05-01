@@ -37,11 +37,11 @@ pub fn run() {
                     .expect("could not resolve resource dir")
                     .join("build/index.js");
 
-                // Spawn the SvelteKit Node sidecar on the chosen port
+                // Spawn the SvelteKit server via Bun sidecar on the chosen port
                 let sidecar_cmd = app
                     .shell()
-                    .sidecar("node-server")
-                    .expect("node-server sidecar not configured")
+                    .sidecar("bun-server")
+                    .expect("bun-server sidecar not configured")
                     .args([resource_path.to_str().expect("resource path is not valid UTF-8")])
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1");
