@@ -29,12 +29,13 @@ if (!nodePlatform || !nodeArch) {
 
 // Map platform+arch → Rust triple
 const tripleMap = {
-  'darwin-arm64': 'aarch64-apple-darwin',
-  'darwin-x64':   'x86_64-apple-darwin',
-  'linux-x64':    'x86_64-unknown-linux-gnu',
-  'linux-arm64':  'aarch64-unknown-linux-gnu',
-  'win-x64':      'x86_64-pc-windows-msvc',
-  'win-arm64':    'aarch64-pc-windows-msvc',
+  'darwin-arm64':     'aarch64-apple-darwin',
+  'darwin-x64':       'x86_64-apple-darwin',
+  'darwin-universal': 'universal-apple-darwin', // handled separately below
+  'linux-x64':        'x86_64-unknown-linux-gnu',
+  'linux-arm64':      'aarch64-unknown-linux-gnu',
+  'win-x64':          'x86_64-pc-windows-msvc',
+  'win-arm64':        'aarch64-pc-windows-msvc',
 };
 
 const key = `${nodePlatform}-${nodeArch}`;
@@ -47,6 +48,44 @@ if (!triple) {
 const nodeVersion = process.version.replace(/^v/, '');
 const isWin = nodePlatform === 'win';
 const suffix = isWin ? '.exe' : '';
+
+// Handle universal macOS build — download both arm64 and x64, lipo together
+if (nodePlatform === 'darwin' && nodeArch === 'universal') {
+  const arm64Path = join(destDir, 'node-server-aarch64-apple-darwin');
+  const x64Path   = join(destDir, 'node-server-x86_64-apple-darwin');
+  const destPath  = join(destDir, 'node-server-universal-apple-darwin');
+
+  mkdirSync(destDir, { recursive: true });
+  console.log('📦  Downloading Node.js binaries for universal macOS build...');
+
+  for (const [arch, outPath] of [['arm64', arm64Path], ['x64', x64Path]]) {
+    const url = `https://nodejs.org/dist/v${nodeVersion}/node-v${nodeVersion}-darwin-${arch}.tar.gz`;
+    console.log(`    ${arch}: ${url}`);
+    const res = await download(url);
+    const tarPath = outPath + '.tar';
+    const tmpDir  = outPath + '-tmp';
+    await saveToFile(res.pipe(createGunzip()), tarPath);
+    mkdirSync(tmpDir, { recursive: true });
+    execSync(`tar -xf "${tarPath}" -C "${tmpDir}" "node-v${nodeVersion}-darwin-${arch}/bin/node"`, { stdio: 'inherit' });
+    renameSync(join(tmpDir, `node-v${nodeVersion}-darwin-${arch}`, 'bin', 'node'), outPath);
+    chmodSync(outPath, 0o755);
+    rmSync(tarPath, { force: true });
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  execSync(`lipo -create "${arm64Path}" "${x64Path}" -output "${destPath}"`, { stdio: 'inherit' });
+  rmSync(arm64Path, { force: true });
+  rmSync(x64Path,   { force: true });
+
+  const { statSync } = await import('fs');
+  const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
+  console.log(`✅  Sidecar ready: node-server-universal-apple-darwin (${sizeMB}MB)`);
+
+  const envFile = process.env.GITHUB_ENV;
+  if (envFile) { const { appendFileSync } = await import('fs'); appendFileSync(envFile, ''); }
+  process.exit(0);
+}
+
 const destName = `node-server-${triple}${suffix}`;
 const destPath = join(destDir, destName);
 

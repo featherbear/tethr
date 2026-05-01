@@ -23,6 +23,8 @@ if (!label || !tag) {
 }
 
 const os = platform();
+// For universal-apple-darwin, Tauri outputs to universal-apple-darwin/release/bundle
+// For native targets (linux, windows), output is at release/bundle
 const bundleBase = join(root, 'src-tauri', 'target',
   rustTarget ? join(rustTarget, 'release', 'bundle') : join('release', 'bundle')
 );
