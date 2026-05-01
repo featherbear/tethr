@@ -28,9 +28,7 @@ jobs:
         include:
           - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app      }
           - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,      bundles: appimage }
-          # linux-arm64: linuxdeploy does not support ARM AppImage cross-compile.
-          # ARM AppImages require QEMU emulation which is extremely slow (~1hr).
-          # Omitted for now — add back with pguyot/arm-runner-action if needed.
+          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
           - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,      bundles: nsis     }
           - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,    bundles: nsis     }
 
