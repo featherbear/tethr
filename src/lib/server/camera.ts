@@ -86,9 +86,10 @@ export function cameraFetch(path: string, init: RequestInit = {}): Promise<Respo
 /**
  * Make a direct (non-queued) request to the camera.
  * Use ONLY for the persistent monitoring stream — it must not block the queue.
+ * Pass an optional baseUrl override to probe a different address (e.g. for validation).
  */
-export function cameraFetchRaw(path: string, init: RequestInit = {}): Promise<Response> {
-  const url = `${getCameraBaseUrl()}${path}`;
+export function cameraFetchRaw(path: string, init: RequestInit = {}, baseUrl?: string): Promise<Response> {
+  const url = `${baseUrl ?? getCameraBaseUrl()}${path}`;
   return rawFetch(url, init);
 }
 

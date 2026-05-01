@@ -103,22 +103,42 @@ function setStatus(status: MonitorStatus, error?: string) {
 }
 
 async function stopExistingSession() {
+  // Send DELETE to ask the camera to release the monitoring slot.
+  // Some cameras (e.g. EOS R50) need a moment after DELETE before accepting a new session.
+  // We wait up to ~6s total, probing with a quick HEAD-like GET to confirm the slot is free.
   await cameraFetch(MONITOR_PATH, {
     method: 'DELETE',
     signal: AbortSignal.timeout(5_000),
   }).catch(() => {});
+
+  // Poll until the camera accepts a new connection (status != 503) or we time out.
+  // Use cameraFetchRaw + immediate abort to avoid opening a real stream or blocking the queue.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise(r => setTimeout(r, 1_000));
+    const ctrl = new AbortController();
+    const probe = await cameraFetchRaw(MONITOR_PATH, { signal: ctrl.signal }).catch(() => null);
+    ctrl.abort(); // immediately abort — we only care about the status code
+    probe?.body?.cancel().catch(() => {});
+    if (!probe || probe.status !== 503) return; // slot is free
+  }
 }
 
 async function runLoop(signal: AbortSignal) {
   let backoff = MIN_BACKOFF;
+  let everLive = false; // track whether we've had at least one successful connection
 
   while (!signal.aborted) {
     setStatus('connecting');
 
     try {
       // Use cameraFetchRaw — the monitoring stream must NOT go through the serial queue
-      // as it is a persistent connection that would block all other camera requests
-      const res = await cameraFetchRaw(MONITOR_PATH);
+      // as it is a persistent connection that would block all other camera requests.
+      // 'Connection: close' ensures Node/undici tears down the TCP connection when the
+      // stream ends — otherwise keep-alive holds it open and the camera won't free the
+      // monitoring slot (causing 503 "Already started" on reconnect).
+      const res = await cameraFetchRaw(MONITOR_PATH, {
+        headers: { 'Connection': 'close' },
+      });
 
       if (signal.aborted) break;
 
@@ -128,22 +148,28 @@ async function runLoop(signal: AbortSignal) {
       }
 
       if (!res.ok || !res.body) {
-        throw new Error(`Camera responded with ${res.status}`);
+        // Don't expose raw HTTP status codes to the UI — just retry silently
+        throw new Error('Could not connect to camera');
       }
 
-      // Fetch all initial shooting settings in one request — store but don't broadcast.
-      // Clients get initial settings via GET /api/state on page load.
-      // SSE 'settings' events are delta-only (real changes from stream frames).
-      try {
-        const settingsRes = await cameraFetch('/ccapi/ver100/shooting/settings', { signal: AbortSignal.timeout(5_000) });
-        if (settingsRes.ok) {
+      // Stream is open — go live immediately so the UI reflects connection.
+      setStatus('live');
+      everLive = true;
+      backoff = MIN_BACKOFF;
+
+      // Fetch initial shooting settings in the background (non-blocking) so the
+      // status bar shows current values immediately without waiting for a dial change.
+      // Verified endpoint on R6 Mark II and EOS R50: GET /ccapi/ver100/shooting/settings
+      cameraFetch('/ccapi/ver100/shooting/settings', { signal: AbortSignal.timeout(5_000) })
+        .then(async (settingsRes) => {
+          if (!settingsRes.ok) return;
           const all = await settingsRes.json() as Record<string, { value?: unknown }>;
           const val = (key: string): string | null => {
             const v = all[key]?.value;
             return (v !== null && v !== undefined && v !== '') ? String(v) : null;
           };
           const ctRaw = all['colortemperature']?.value;
-          setSettings_({
+          const s: ShootingSettings = {
             av:          val('av'),
             tv:          val('tv'),
             iso:         val('iso'),
@@ -154,18 +180,11 @@ async function runLoop(signal: AbortSignal) {
             metering:    val('metering'),
             drive:       val('drive'),
             afoperation: val('afoperation'),
-          });
-        }
-      } catch { /* non-fatal — stream will fill in values as dials change */ }
-
-      setStatus('live');
-      // Broadcast settings immediately when live — guarantees client gets values
-      // even on first boot before any dial change triggers a stream frame
-      const liveSettings = getSettings_();
-      if (liveSettings.av || liveSettings.tv || liveSettings.iso) {
-        broadcast('settings', liveSettings);
-      }
-      backoff = MIN_BACKOFF;
+          };
+          setSettings_(s);
+          if (s.av || s.tv || s.iso) broadcast('settings', s);
+        })
+        .catch(() => { /* non-fatal — stream frames will fill in values on dial changes */ });
 
       const reader = res.body.getReader();
       let remainder = Buffer.alloc(0);
@@ -225,8 +244,10 @@ async function runLoop(signal: AbortSignal) {
 
     } catch (e) {
       if (signal.aborted) break;
-      const msg = String(e);
-      setStatus('reconnecting', msg);
+      // Only surface error details if we've previously been live — otherwise it's
+      // just noise from connecting to a non-camera address (404, ECONNREFUSED, etc.)
+      const msg = everLive ? String(e) : null;
+      setStatus('reconnecting', msg ?? undefined);
       await new Promise<void>(r => {
         const t = setTimeout(r, backoff);
         signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
