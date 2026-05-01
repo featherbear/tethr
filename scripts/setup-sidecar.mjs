@@ -1,57 +1,27 @@
 #!/usr/bin/env node
-// setup-sidecar.mjs — Copy the local Node.js binary into src-tauri/binaries/
-// with the Tauri-required triple suffix for the current platform.
+// setup-sidecar.mjs — Set up the Node.js sidecar for the current (native) platform.
 //
-// Cross-platform: works on macOS, Linux, and Windows.
+// Delegates to download-sidecar.mjs with the current platform/arch.
 // Run via: pnpm sidecar  (or node scripts/setup-sidecar.mjs)
 
 import { execSync } from 'child_process';
-import { copyFileSync, mkdirSync, chmodSync, statSync } from 'fs';
+import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { platform } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
 
-// Get Node.js binary path
-const nodeBin = process.execPath;
+// Map os.platform() / os.arch() to nodejs.org download identifiers
+const platformMap = { darwin: 'darwin', linux: 'linux', win32: 'win' };
+const archMap = { x64: 'x64', arm64: 'arm64' };
 
-// Get Rust host triple — try to find rustc, sourcing ~/.cargo/env on Unix if needed
-let triple;
-try {
-  const isWin = platform() === 'win32';
-  // On Unix, rustup installs to ~/.cargo/bin which may not be in PATH in non-login shells
-  const rustcCmd = isWin
-    ? 'rustc -vV'
-    : `bash -c "source \\"$HOME/.cargo/env\\" 2>/dev/null; rustc -vV"`;
-  const output = execSync(rustcCmd, { encoding: 'utf8', shell: true });
-  const match = output.match(/^host:\s+(.+)$/m);
-  if (!match) throw new Error('Could not parse host triple from rustc output');
-  triple = match[1].trim();
-} catch (e) {
-  console.error('❌  Rust/Cargo not found. Install via: https://rustup.rs');
+const nodePlatform = platformMap[platform()];
+const nodeArch = archMap[arch()];
+
+if (!nodePlatform || !nodeArch) {
+  console.error(`❌  Unsupported platform: ${platform()} ${arch()}`);
   process.exit(1);
 }
 
-const isWindows = platform() === 'win32';
-const suffix = isWindows ? '.exe' : '';
-const destName = `node-server-${triple}${suffix}`;
-const destDir  = join(root, 'src-tauri', 'binaries');
-const dest     = join(destDir, destName);
-
-mkdirSync(destDir, { recursive: true });
-
-console.log('📦  Copying Node binary...');
-console.log(`    From: ${nodeBin}`);
-console.log(`    To:   ${dest}`);
-
-copyFileSync(nodeBin, dest);
-
-// Make executable on Unix
-if (!isWindows) {
-  chmodSync(dest, 0o755);
-}
-
-const sizeMB = (statSync(dest).size / 1024 / 1024).toFixed(0);
-console.log(`✅  Sidecar ready: ${destName} (${sizeMB}MB)`);
+const script = join(__dirname, 'download-sidecar.mjs');
+execSync(`node "${script}" ${nodePlatform} ${nodeArch}`, { stdio: 'inherit' });

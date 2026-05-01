@@ -35,22 +35,30 @@ jobs:
             rust-target: aarch64-apple-darwin
             tauri-args: '--target aarch64-apple-darwin --bundles app'
             label: macos-arm64
+            node-platform: darwin
+            node-arch: arm64
 
           - platform: macos-latest
             rust-target: x86_64-apple-darwin
             tauri-args: '--target x86_64-apple-darwin --bundles app'
             label: macos-x86_64
+            node-platform: darwin
+            node-arch: x64
 
           # ── Linux ──────────────────────────────────────────────────────────
           - platform: ubuntu-22.04
             rust-target: ''
             tauri-args: '--bundles appimage'
             label: linux-x86_64
+            node-platform: linux
+            node-arch: x64
 
           - platform: ubuntu-24.04-arm
             rust-target: ''
             tauri-args: '--bundles appimage'
             label: linux-arm64
+            node-platform: linux
+            node-arch: arm64
 
           # ── Windows ────────────────────────────────────────────────────────
           - platform: windows-latest
@@ -59,6 +67,8 @@ jobs:
             label: windows-x86_64
             portable: true
             skip-tauri-action: true
+            node-platform: win
+            node-arch: x64
 
           - platform: windows-11-arm
             rust-target: ''
@@ -66,6 +76,8 @@ jobs:
             label: windows-arm64
             portable: true
             skip-tauri-action: true
+            node-platform: win
+            node-arch: arm64
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -106,6 +118,9 @@ jobs:
 
       - name: Install JS dependencies
         run: pnpm install
+
+      - name: Download target Node binary for sidecar
+        run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }}
 
       - name: Build Tauri app (via tauri-action — non-Windows)
         if: ${{ !matrix.skip-tauri-action }}
