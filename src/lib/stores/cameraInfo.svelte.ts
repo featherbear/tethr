@@ -3,7 +3,7 @@ export interface CameraInfo {
   serialnumber: string;
   firmwareversion: string;
   battery: {
-    level: string;   // 'high' | 'half' | 'low' | 'exhausted'
+    level: string;   // 'full' | 'high' | 'half' | 'quarter' | 'low' | 'exhausted' | 'charge' | 'chargestop' | 'chargecomp' | 'none' | 'unknown'
     quality: string; // 'normal' | 'degraded'
     name: string;
   };

@@ -36,23 +36,47 @@
 
   const cfg = $derived(statusConfig[status] ?? statusConfig.idle);
 
-  // Battery level → fill fraction (0–1) and colour
+  // Battery level → fill fraction (0–1) and colour.
+  // batterylist (ver110) returns numeric strings like "14" (percentage).
+  // battery (ver100) returns named strings like "low".
+  // Full named enum from Canon SDK: 'full' | 'high' | 'half' | 'quarter' | 'low' |
+  //   'exhausted' | 'charge' | 'chargestop' | 'chargecomp' | 'none' | 'unknown'
   function batteryFill(level: string): number {
+    const pct = parseInt(level, 10);
+    if (!isNaN(pct)) return pct / 100; // numeric % from batterylist
     switch (level) {
-      case 'high':      return 1.0;
-      case 'half':      return 0.5;
-      case 'low':       return 0.2;
-      case 'exhausted': return 0.05;
-      default:          return 0;
+      case 'full':        return 1.0;
+      case 'high':        return 0.75;
+      case 'half':        return 0.5;
+      case 'quarter':     return 0.25;
+      case 'low':         return 0.1;
+      case 'exhausted':   return 0.05;
+      case 'charge':      return 0.5;
+      case 'chargestop':  return 0.5;
+      case 'chargecomp':  return 1.0;
+      default:            return 0;
     }
   }
 
   function batteryColor(level: string): string {
+    const pct = parseInt(level, 10);
+    if (!isNaN(pct)) {
+      if (pct > 50) return '#22c55e';
+      if (pct > 25) return '#f59e0b';
+      if (pct > 10) return '#f97316';
+      return '#ef4444';
+    }
     switch (level) {
-      case 'high': return '#22c55e';
-      case 'half': return '#f59e0b';
-      case 'low':  return '#ef4444';
-      default:     return '#6b7280';
+      case 'full':
+      case 'high':
+      case 'chargecomp': return '#22c55e';
+      case 'half':
+      case 'charge':
+      case 'chargestop': return '#f59e0b';
+      case 'quarter':    return '#f97316';
+      case 'low':
+      case 'exhausted':  return '#ef4444';
+      default:           return '#6b7280';
     }
   }
 
@@ -105,7 +129,7 @@
 
     {:else}
       <span class="status-label">{cfg.label}</span>
-      {#if errorMessage && (status === 'error' || status === 'reconnecting')}
+      {#if errorMessage && status === 'error'}
         <span class="error-msg">{errorMessage}</span>
       {/if}
     {/if}
@@ -114,7 +138,9 @@
   <!-- Right: battery + shot count + fullscreen + settings -->
   <div class="right">
     {#if cameraInfo}
-      <div class="battery-wrap" title="Battery: {cameraInfo.battery.level}">
+      <div class="battery-wrap" title="Battery: {
+        (() => { const p = parseInt(cameraInfo.battery.level, 10); return isNaN(p) ? cameraInfo.battery.level : p + '%'; })()
+      } ({cameraInfo.battery.name})">
         <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
             fill="none" stroke="currentColor" stroke-width="1"/>
