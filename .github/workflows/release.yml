@@ -28,11 +28,7 @@ jobs:
         include:
           - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app      }
           - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,      bundles: appimage }
-          # linux-arm64: tauri-apps/binary-releases ships an outdated linuxdeploy-aarch64.AppImage
-          # (build #5, 2024-07-24) which crashes with std::runtime_error when ldd fails on the
-          # Bun static binary. The x86_64 version (build #10, 2024-07-26) handles this correctly.
-          # Disabled until the upstream binary release is updated.
-          # - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
+          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
           - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,      bundles: nsis     }
           - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,    bundles: nsis     }
 
@@ -66,6 +62,21 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils \
             libfuse2
+
+      - name: Override linuxdeploy with newer build (linux-arm64)
+        if: matrix.label == 'linux-arm64'
+        run: |
+          # The linuxdeploy-aarch64 in tauri-apps/binary-releases is build #5 (2024-07-24)
+          # which crashes when ldd fails on static binaries (e.g. Bun). Use a newer upstream
+          # build that handles ldd failures gracefully.
+          mkdir -p ~/.cache/tauri
+          curl -L \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-aarch64.AppImage \
+            -o ~/.cache/tauri/linuxdeploy-aarch64.AppImage
+          chmod +x ~/.cache/tauri/linuxdeploy-aarch64.AppImage
+          # Disable FUSE (no fusermount in CI containers) — Tauri does this for its bundled copy
+          dd if=/dev/zero bs=1 count=3 seek=8 conv=notrunc of=~/.cache/tauri/linuxdeploy-aarch64.AppImage
+          ls -lh ~/.cache/tauri/linuxdeploy-aarch64.AppImage
 
       - run: pnpm install
 
