@@ -128,16 +128,33 @@
     if (!browser || eventSource) return;
     eventSource = new EventSource('/api/events');
 
+    let badAddressTimer: ReturnType<typeof setTimeout> | null = null;
+
     eventSource.addEventListener('status', (e) => {
       const { status, error } = JSON.parse(e.data);
       cameraStore.setStatus(status, error);
+
       // Fetch camera info when we first go live
-      if (status === 'live' && !cameraInfoStore.info) {
-        fetchCameraInfo();
+      if (status === 'live') {
+        // Cancel any pending "bad address" prompt — we connected successfully
+        if (badAddressTimer) { clearTimeout(badAddressTimer); badAddressTimer = null; }
+        if (!cameraInfoStore.info) fetchCameraInfo();
       }
+
       // Clear info when disconnected
       if (status === 'stopped' || status === 'connecting') {
         cameraInfoStore.set(null);
+      }
+
+      // If we're reconnecting and never successfully connected, the saved address
+      // is probably wrong. Show the settings modal after a grace period.
+      if (status === 'reconnecting' && !cameraInfoStore.info && !showSettings) {
+        if (!badAddressTimer) {
+          badAddressTimer = setTimeout(() => {
+            badAddressTimer = null;
+            if (!cameraInfoStore.info && !showSettings) showSettings = true;
+          }, 4_000);
+        }
       }
     });
 
@@ -198,8 +215,14 @@
   const THUMB_MAX_RETRIES = 4;
   const THUMB_RETRY_DELAY_MS = 1_500;
 
+  // Strip the CCAPI contents prefix from a full camera path to get just the card-relative path.
+  // e.g. "/ccapi/ver120/contents/card1/100EOSR6/IMG.CR3" → "card1/100EOSR6/IMG.CR3"
+  function toApiPath(fullPath: string): string {
+    return fullPath.replace(/^\/?ccapi\/ver\d+\/contents\//, '');
+  }
+
   async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
-    const camPath = `${dirname}/${filename}`.replace(/^\//, '');
+    const camPath = toApiPath(`${dirname}/${filename}`);
     try {
       const res = await fetch(`/api/thumbnail/${camPath}`);
       if (!res.ok) {
@@ -240,7 +263,7 @@
                         ?? photo.variants.find(v => /\.(cr3|cr2)$/i.test(v));
     if (!displayVariant) return;
 
-    const camPath = `${photo.dirname}/${displayVariant}`.replace(/^\//, '');
+    const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
     try {
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);

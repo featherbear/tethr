@@ -3,7 +3,8 @@ import { error } from '@sveltejs/kit';
 import { cameraFetch } from '$lib/server/camera';
 
 export const GET: RequestHandler = async ({ params }) => {
-  const camPath = `/${params.path}`;
+  // params.path is e.g. "card1/100EOSR6/4E5A7113.CR3" — prepend the CCAPI contents prefix
+  const camPath = `/ccapi/ver120/contents/${params.path}`;
 
   try {
     const res = await cameraFetch(`${camPath}?kind=thumbnail`, {
