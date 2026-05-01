@@ -21,7 +21,7 @@ Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control 
 
 ## Requirements
 
-- macOS (Apple Silicon or Intel)
+- macOS, Windows, or Linux
 - Canon camera with CCAPI enabled, connected to the same WiFi network
 - Node.js ≥ 18
 - [pnpm](https://pnpm.io) (`npm install -g pnpm`)
@@ -69,14 +69,20 @@ pnpm tauri dev
 
 ## Production build
 
-The `.app` is fully self-contained — no external Node.js required:
+The bundle is fully self-contained — no external Node.js required:
 
 ```bash
 pnpm tauri build
-# Output: src-tauri/target/release/bundle/macos/tethr.app
+# macOS:   src-tauri/target/release/bundle/macos/tethr.app
+# Windows: src-tauri/target/release/bundle/nsis/tethr_x.x.x_x64-setup.exe
+# Linux:   src-tauri/target/release/bundle/appimage/tethr_x.x.x_amd64.AppImage
 ```
 
-At launch, Tauri spawns the bundled Node binary running the SvelteKit server on `localhost:3000`, waits for it to be ready, then opens the WebView window.
+`pnpm sidecar` runs automatically as part of the build — no need to run it manually.
+
+At launch, Tauri finds a free local port, spawns the bundled Node binary running the SvelteKit server, waits for it to be ready, then opens the WebView window.
+
+> **CI:** Multi-platform builds run automatically on tag push via GitHub Actions (`.github/workflows/release.yml`). Push a `v*` tag to trigger a draft release with macOS (arm64 + x86_64), Windows, and Linux bundles.
 
 ---
 

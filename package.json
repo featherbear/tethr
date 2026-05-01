@@ -12,7 +12,7 @@
     "tauri": "tauri",
     "mock": "bun run mock/ccapi-server.ts",
     "dev:mock": "concurrently \"pnpm mock\" \"pnpm dev\"",
-    "sidecar": "bash scripts/setup-sidecar.sh"
+    "sidecar": "node scripts/setup-sidecar.mjs"
   },
   "license": "MIT",
   "dependencies": {
