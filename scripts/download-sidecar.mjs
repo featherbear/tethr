@@ -1,10 +1,16 @@
 #!/usr/bin/env node
-// download-sidecar.mjs — Download the correct Bun binary for the target
-// platform/arch and place it in src-tauri/binaries/ with the Tauri triple suffix.
+// download-sidecar.mjs — Download a JS runtime (Bun by default, Node optional)
+// for the target platform/arch and place it in src-tauri/binaries/ with the
+// Tauri triple suffix.
 //
-// Usage: node scripts/download-sidecar.mjs <platform> <arch>
+// Usage: node scripts/download-sidecar.mjs <platform> <arch> [runtime]
 //   platform: darwin | linux | win
 //   arch:     x64 | arm64 | universal (darwin only)
+//   runtime:  bun (default) | node
+//
+// Note: the binary is always written as `bun-server` regardless of runtime,
+// so lib.rs and the rest of the build don't need to change. Node.js works as
+// a drop-in for Bun for our adapter-node SvelteKit output.
 //
 // Uses only Node built-ins — no npm deps.
 
@@ -19,7 +25,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const destDir = join(root, 'src-tauri', 'binaries');
 
-const [,, nodePlatform, nodeArch] = process.argv;
+const [,, nodePlatform, nodeArch, runtimeArg] = process.argv;
+const runtime = (runtimeArg || 'bun').toLowerCase();
+if (!['bun', 'node'].includes(runtime)) {
+  console.error(`❌  Unknown runtime: ${runtime} (must be 'bun' or 'node')`);
+  process.exit(1);
+}
 
 if (!nodePlatform || !nodeArch) {
   console.error('Usage: node download-sidecar.mjs <platform> <arch>');
@@ -104,6 +115,60 @@ function saveToFile(stream, filePath) {
   });
 }
 
+// Map platform+arch → Node.js download asset suffix
+const nodeAssetMap = {
+  'darwin-arm64': 'darwin-arm64',
+  'darwin-x64':   'darwin-x64',
+  'linux-x64':    'linux-x64',
+  'linux-arm64':  'linux-arm64',
+  'win-x64':      'win-x64',
+  'win-arm64':    'win-arm64',
+};
+
+const NODE_VERSION = process.version.replace(/^v/, ''); // match the host Node
+
+async function downloadNode(platform, arch) {
+  const assetKey = `${platform}-${arch}`;
+  const assetSuffix = nodeAssetMap[assetKey];
+  if (!assetSuffix) throw new Error(`No Node asset for ${assetKey}`);
+
+  const isWindows = platform === 'win';
+  const ext = isWindows ? 'zip' : 'tar.xz';
+  const baseName = `node-v${NODE_VERSION}-${assetSuffix}`;
+  const url = `https://nodejs.org/dist/v${NODE_VERSION}/${baseName}.${ext}`;
+  console.log(`    ${assetKey} (node v${NODE_VERSION}): ${url}`);
+
+  const archivePath = join(destDir, `_node-${assetKey}.${ext}`);
+  const tmpDir = join(destDir, `_node-${assetKey}-tmp`);
+
+  const res = await download(url);
+  await saveToFile(res, archivePath);
+
+  mkdirSync(tmpDir, { recursive: true });
+
+  if (isWindows) {
+    execSync(
+      `powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpDir}' -Force"`,
+      { stdio: 'inherit' }
+    );
+  } else {
+    execSync(`tar -xJf "${archivePath}" -C "${tmpDir}"`, { stdio: 'inherit' });
+  }
+
+  const nodeBin = isWindows
+    ? join(tmpDir, baseName, 'node.exe')
+    : join(tmpDir, baseName, 'bin', 'node');
+
+  rmSync(archivePath, { force: true });
+  return { binPath: nodeBin, tmpDir };
+}
+
+async function downloadRuntime(platform, arch) {
+  return runtime === 'node'
+    ? downloadNode(platform, arch)
+    : downloadBun(platform, arch);
+}
+
 async function downloadBun(platform, arch) {
   const assetKey = `${platform}-${arch}`;
   const assetName = bunAssetMap[assetKey];
@@ -174,9 +239,9 @@ if (nodePlatform === 'darwin' && nodeArch === 'universal') {
 const destName = `bun-server-${triple}${suffix}`;
 const destPath = join(destDir, destName);
 
-console.log(`📦  Downloading Bun for ${key} → ${triple}`);
+console.log(`📦  Downloading ${runtime} for ${key} → ${triple}`);
 
-const { binPath, tmpDir } = await downloadBun(nodePlatform, nodeArch);
+const { binPath, tmpDir } = await downloadRuntime(nodePlatform, nodeArch);
 renameSync(binPath, destPath);
 rmSync(tmpDir, { recursive: true, force: true });
 
@@ -186,7 +251,7 @@ if (!isWin) chmodSync(destPath, 0o755);
 copyToBuildDir(destPath, isWin);
 
 const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-console.log(`✅  Sidecar ready: ${destName} (${sizeMB}MB)`);
+console.log(`✅  Sidecar ready: ${destName} (${runtime}, ${sizeMB}MB)`);
 
 // Write artifact path to GITHUB_ENV if in CI
 const envFile = process.env.GITHUB_ENV;

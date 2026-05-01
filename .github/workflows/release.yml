@@ -26,11 +26,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app      }
-          - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,      bundles: appimage }
-          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,    bundles: appimage }
-          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,      bundles: nsis     }
-          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,    bundles: nsis     }
+          - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app,      runtime: bun  }
+          - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,       bundles: appimage, runtime: bun  }
+          # linux-arm64 uses Node instead of Bun: linuxdeploy's gtk plugin runs ldd on every
+          # ELF in the AppDir including bun-server. The arm64 linuxdeploy crashes when ldd
+          # fails on the statically-linked Bun binary. Node is dynamically linked so ldd
+          # succeeds, sidestepping the crash.
+          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,     bundles: appimage, runtime: node }
+          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,       bundles: nsis,     runtime: bun  }
+          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,     bundles: nsis,     runtime: bun  }
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -84,7 +88,7 @@ jobs:
         run: pnpm build
 
       - name: Set up sidecar
-        run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }}
+        run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
       - name: Build
         shell: bash
