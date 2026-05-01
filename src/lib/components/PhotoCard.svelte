@@ -32,15 +32,24 @@
     {#if photo.state === 'loading'}
       <div class="shimmer"></div>
     {:else}
-      <!-- Show fullres on top if available, thumbnail underneath -->
+      <!-- Thumbnail sits underneath; hidden once display/fullres is ready -->
       {#if photo.thumbnailUrl}
         <img
           class="img img--thumb"
-          class:img--hidden={photo.state === 'fullres'}
+          class:img--hidden={!!(photo.displayUrl || photo.fullresUrl)}
           src={photo.thumbnailUrl}
           alt={photo.filename}
         />
       {/if}
+      <!-- Display-quality image (fetched via /api/fullres?kind=display) -->
+      {#if photo.displayUrl && !photo.fullresUrl}
+        <img
+          class="img img--display"
+          src={photo.displayUrl}
+          alt={photo.filename}
+        />
+      {/if}
+      <!-- Full-res image (if ever fetched) -->
       {#if photo.fullresUrl}
         <img
           class="img img--fullres"
@@ -54,7 +63,11 @@
       {#if photo.state === 'loading'}
         <span class="badge__dot badge__dot--loading"></span> Loading…
       {:else if photo.state === 'thumbnail'}
-        <span class="badge__dot badge__dot--thumb"></span> Preview
+        {#if photo.displayProgress !== null}
+          <span class="badge__dot badge__dot--loading"></span> {photo.displayProgress}%
+        {:else}
+          <span class="badge__dot badge__dot--thumb"></span> Preview
+        {/if}
       {:else}
         <span class="badge__dot badge__dot--full"></span> HD
       {/if}
