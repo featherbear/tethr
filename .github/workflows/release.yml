@@ -156,7 +156,7 @@ jobs:
         run: |
           $tag   = "${{ github.ref_name }}"
           $label = "${{ matrix.label }}"
-          $zip   = "tethr-${tag}-${label}-portable.zip"
+          $zip   = "tethr-${tag}-${label}.zip"
           Compress-Archive -Path "src-tauri\target\release\tethr.exe" -DestinationPath $zip
           echo "ARTIFACT=$zip" >> $env:GITHUB_ENV
 
