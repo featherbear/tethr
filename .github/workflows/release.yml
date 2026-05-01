@@ -33,14 +33,12 @@ jobs:
           # ── macOS ──────────────────────────────────────────────────────────
           - platform: macos-latest
             rust-target: aarch64-apple-darwin
-            tauri-args: '--target aarch64-apple-darwin --bundles app'
             label: macos-arm64
             node-platform: darwin
             node-arch: arm64
 
           - platform: macos-latest
             rust-target: x86_64-apple-darwin
-            tauri-args: '--target x86_64-apple-darwin --bundles app'
             label: macos-x86_64
             node-platform: darwin
             node-arch: x64
@@ -48,14 +46,12 @@ jobs:
           # ── Linux ──────────────────────────────────────────────────────────
           - platform: ubuntu-22.04
             rust-target: ''
-            tauri-args: '--bundles appimage'
             label: linux-x86_64
             node-platform: linux
             node-arch: x64
 
           - platform: ubuntu-24.04-arm
             rust-target: ''
-            tauri-args: '--bundles appimage'
             label: linux-arm64
             node-platform: linux
             node-arch: arm64
@@ -63,19 +59,13 @@ jobs:
           # ── Windows ────────────────────────────────────────────────────────
           - platform: windows-latest
             rust-target: ''
-            tauri-args: '--bundles nsis'
             label: windows-x86_64
-            portable: true
-            skip-tauri-action: true
             node-platform: win
             node-arch: x64
 
           - platform: windows-11-arm
             rust-target: ''
-            tauri-args: '--bundles nsis'
             label: windows-arm64
-            portable: true
-            skip-tauri-action: true
             node-platform: win
             node-arch: arm64
 
@@ -123,37 +113,59 @@ jobs:
       - name: Download target Node binary for sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }}
 
-      - name: Build Tauri app (via tauri-action — non-Windows)
-        if: ${{ !matrix.skip-tauri-action }}
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: tethr ${{ github.ref_name }}
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.tauri-args }}
+      # ── macOS ────────────────────────────────────────────────────────────
+      - name: Build (macOS)
+        if: matrix.node-platform == 'darwin'
+        run: pnpm tauri build --target ${{ matrix.rust-target }} --bundles app
 
-      - name: Build Tauri app (Windows — manual, portable zip only)
-        if: ${{ matrix.skip-tauri-action }}
-        run: pnpm tauri build ${{ matrix.tauri-args }}
+      - name: Package and upload macOS artifact
+        if: matrix.node-platform == 'darwin'
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          LABEL="${{ matrix.label }}"
+          APP_PATH="src-tauri/target/${{ matrix.rust-target }}/release/bundle/macos/tethr.app"
+          ZIP_NAME="tethr-${TAG}-${LABEL}.zip"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_NAME"
+          echo "ARTIFACT=$ZIP_NAME" >> "$GITHUB_ENV"
 
-      # Windows: also upload a portable zip (raw .exe, no installation required)
-      - name: Create Windows portable zip
-        if: matrix.portable
+      # ── Linux ─────────────────────────────────────────────────────────────
+      - name: Build (Linux)
+        if: matrix.node-platform == 'linux'
+        run: pnpm tauri build --bundles appimage
+
+      - name: Package and upload Linux artifact
+        if: matrix.node-platform == 'linux'
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          LABEL="${{ matrix.label }}"
+          SRC=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          DEST="tethr-${TAG}-${LABEL}.AppImage"
+          mv "$SRC" "$DEST"
+          echo "ARTIFACT=$DEST" >> "$GITHUB_ENV"
+
+      # ── Windows ───────────────────────────────────────────────────────────
+      - name: Build (Windows)
+        if: matrix.node-platform == 'win'
+        run: pnpm tauri build --bundles nsis
+
+      - name: Package and upload Windows artifact
+        if: matrix.node-platform == 'win'
         shell: pwsh
         run: |
-          $zipName = "tethr-${{ github.ref_name }}-${{ matrix.label }}-portable.zip"
-          Compress-Archive -Path "src-tauri\target\release\tethr.exe" -DestinationPath $zipName
-          echo "ZIP_PATH=$zipName" >> $env:GITHUB_ENV
+          $tag   = "${{ github.ref_name }}"
+          $label = "${{ matrix.label }}"
+          $zip   = "tethr-${tag}-${label}-portable.zip"
+          Compress-Archive -Path "src-tauri\target\release\tethr.exe" -DestinationPath $zip
+          echo "ARTIFACT=$zip" >> $env:GITHUB_ENV
 
-      - name: Upload Windows portable zip to release
-        if: matrix.portable
+      # ── Upload (all platforms) ─────────────────────────────────────────────
+      - name: Upload artifact to release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           tag_name: ${{ github.ref_name }}
-          files: ${{ env.ZIP_PATH }}
+          files: ${{ env.ARTIFACT }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
