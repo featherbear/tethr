@@ -13,15 +13,27 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            rust-target: aarch64-apple-darwin
+            tauri-args: '--target aarch64-apple-darwin --bundles app'
+            label: macos-arm64
+
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
+            rust-target: x86_64-apple-darwin
+            tauri-args: '--target x86_64-apple-darwin --bundles app'
+            label: macos-x86_64
+
           - platform: ubuntu-22.04
-            args: ''
+            rust-target: ''
+            tauri-args: '--bundles appimage,deb'
+            label: linux-x86_64
+
           - platform: windows-latest
-            args: ''
+            rust-target: ''
+            tauri-args: '--bundles nsis'
+            label: windows-x86_64
 
     runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.label }})
 
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +52,12 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -62,7 +79,37 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: tethr ${{ github.ref_name }}
-          releaseBody: See CHANGELOG for details.
+          releaseBody: |
+            ## Downloads
+
+            | Platform | File |
+            |---|---|
+            | macOS (Apple Silicon) | `tethr_*_aarch64.dmg` |
+            | macOS (Intel) | `tethr_*_x64.dmg` |
+            | Windows (installer) | `tethr_*_x64-setup.exe` |
+            | Windows (portable) | `tethr-*-windows-portable.zip` |
+            | Linux (AppImage) | `tethr_*_amd64.AppImage` |
+            | Linux (deb) | `tethr_*_amd64.deb` |
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.tauri-args }}
+
+      # Windows: also upload a portable zip (raw .exe, no installation required)
+      - name: Create Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $exePath = "src-tauri\target\release\tethr.exe"
+          $zipName = "tethr-${{ github.ref_name }}-windows-portable.zip"
+          Compress-Archive -Path $exePath -DestinationPath $zipName
+          echo "ZIP_PATH=$zipName" >> $env:GITHUB_ENV
+
+      - name: Upload Windows portable zip to release
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ${{ env.ZIP_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
