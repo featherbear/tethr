@@ -32,8 +32,8 @@ pub fn run() {
                     .resource_dir()
                     .expect("could not resolve resource dir");
 
-                // bun-server is embedded inside build/ (to avoid linuxdeploy ldd)
-                let bun_name = if cfg!(windows) { "bun-server.exe" } else { "bun-server" };
+                // js-runtime is embedded inside build/ (to avoid linuxdeploy ldd)
+                let bun_name = if cfg!(windows) { "js-runtime.exe" } else { "js-runtime" };
                 let bun_bin = resource_dir.join("build").join(bun_name);
                 let index_js = resource_dir.join("build/index.js");
 
@@ -42,20 +42,20 @@ pub fn run() {
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let mut perms = std::fs::metadata(&bun_bin)
-                        .expect("bun-server not found in resources")
+                        .expect("js-runtime not found in resources")
                         .permissions();
                     perms.set_mode(0o755);
                     std::fs::set_permissions(&bun_bin, perms).ok();
                 }
 
-                // Spawn bun-server via std::process::Command (not Tauri sidecar API)
+                // Spawn js-runtime via std::process::Command (not Tauri sidecar API)
                 // This avoids linuxdeploy trying to run ldd on the Bun binary.
                 std::process::Command::new(&bun_bin)
                     .arg(&index_js)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")
                     .spawn()
-                    .expect("failed to spawn bun-server");
+                    .expect("failed to spawn js-runtime");
 
                 // Poll until the SvelteKit server is ready (max ~10s)
                 let health_url = format!("{server_url}/");

@@ -8,7 +8,7 @@
 //   arch:     x64 | arm64 | universal (darwin only)
 //   runtime:  bun (default) | node
 //
-// Note: the binary is always written as `bun-server` regardless of runtime,
+// Note: the binary is always written as `js-runtime` regardless of runtime,
 // so lib.rs and the rest of the build don't need to change. Node.js works as
 // a drop-in for Bun for our adapter-node SvelteKit output.
 //
@@ -77,7 +77,7 @@ mkdirSync(destDir, { recursive: true });
 function copyToBuildDir(binPath, isWin) {
   const buildDir = join(root, 'build');
   const ext = isWin ? '.exe' : '';
-  const dest = join(buildDir, `bun-server${ext}`);
+  const dest = join(buildDir, `js-runtime${ext}`);
   mkdirSync(buildDir, { recursive: true });
   if (isWin) {
     execSync(`copy /Y "${binPath}" "${dest}"`, { stdio: 'inherit', shell: true });
@@ -87,7 +87,7 @@ function copyToBuildDir(binPath, isWin) {
     // lib.rs sets +x at runtime before spawning.
     chmodSync(dest, 0o644);
   }
-  console.log(`✅  Copied to build/bun-server${ext}`);
+  console.log(`✅  Copied to build/js-runtime${ext}`);
 }
 
 // Follow redirects and return the response stream
@@ -212,18 +212,18 @@ if (nodePlatform === 'darwin' && nodeArch === 'universal') {
 
   const paths = {};
   for (const [arch, triple] of [['arm64', 'aarch64-apple-darwin'], ['x64', 'x86_64-apple-darwin']]) {
-    const destPath = join(destDir, `bun-server-${triple}`);
+    const destPath = join(destDir, `js-runtime-${triple}`);
     const { binPath, tmpDir } = await downloadBun('darwin', arch);
     renameSync(binPath, destPath);
     chmodSync(destPath, 0o755);
     rmSync(tmpDir, { recursive: true, force: true });
     paths[triple] = destPath;
     const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-    console.log(`✅  bun-server-${triple} (${sizeMB}MB)`);
+    console.log(`✅  js-runtime-${triple} (${sizeMB}MB)`);
   }
 
   // Create universal binary via lipo
-  const universalPath = join(destDir, 'bun-server-universal-apple-darwin');
+  const universalPath = join(destDir, 'js-runtime-universal-apple-darwin');
   execSync(
     `lipo -create "${paths['aarch64-apple-darwin']}" "${paths['x86_64-apple-darwin']}" -output "${universalPath}"`,
     { stdio: 'inherit' }
@@ -231,12 +231,12 @@ if (nodePlatform === 'darwin' && nodeArch === 'universal') {
   chmodSync(universalPath, 0o755);
   copyToBuildDir(universalPath, false);
   const sizeMB = (statSync(universalPath).size / 1024 / 1024).toFixed(0);
-  console.log(`✅  bun-server-universal-apple-darwin (${sizeMB}MB)`);
+  console.log(`✅  js-runtime-universal-apple-darwin (${sizeMB}MB)`);
   process.exit(0);
 }
 
 // ── Single platform ────────────────────────────────────────────────────────
-const destName = `bun-server-${triple}${suffix}`;
+const destName = `js-runtime-${triple}${suffix}`;
 const destPath = join(destDir, destName);
 
 console.log(`📦  Downloading ${runtime} for ${key} → ${triple}`);
