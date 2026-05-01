@@ -72,7 +72,9 @@ function copyToBuildDir(binPath, isWin) {
     execSync(`copy /Y "${binPath}" "${dest}"`, { stdio: 'inherit', shell: true });
   } else {
     execSync(`cp "${binPath}" "${dest}"`, { stdio: 'inherit' });
-    chmodSync(dest, 0o755);
+    // Do NOT set +x here — Tauri moves executable resources to MacOS/ on macOS.
+    // lib.rs sets +x at runtime before spawning.
+    chmodSync(dest, 0o644);
   }
   console.log(`✅  Copied to build/bun-server${ext}`);
 }
