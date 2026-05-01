@@ -1,6 +1,6 @@
 # tethr
 
-A macOS desktop app that previews photos from a Canon EOS camera over WiFi — in real-time, as you shoot.
+A desktop app that previews photos from a Canon EOS camera over WiFi — in real-time, as you shoot.
 
 Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control API (CCAPI)](https://developercommunity.usa.canon.com/s/article/Introduction-to-Camera-Control-API-CCAPI).
 
@@ -35,9 +35,6 @@ Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control 
 # Install dependencies
 pnpm install
 
-# Set up the Tauri sidecar (required for pnpm tauri build, not needed for pnpm dev)
-pnpm sidecar
-
 # Start the dev server (Vite, port 1420)
 CCAPI_BASE_URL=http://<camera-ip>:8080 pnpm dev
 
@@ -62,8 +59,8 @@ pnpm tauri dev
 | `pnpm check` | TypeScript + Svelte type-check |
 | `pnpm build` | Build SvelteKit output (`build/`) |
 | `pnpm tauri dev` | Open Tauri native window (dev mode) |
-| `pnpm tauri build` | Bundle production `.app` |
-| `pnpm sidecar` | Copy Node binary into `src-tauri/binaries/` (required before `tauri build`) |
+| `pnpm tauri build` | Bundle production app (runs sidecar setup automatically) |
+| `pnpm sidecar` | Manually copy Node binary into `src-tauri/binaries/` (run if sidecar step fails) |
 
 ---
 
@@ -74,7 +71,7 @@ The bundle is fully self-contained — no external Node.js required:
 ```bash
 pnpm tauri build
 # macOS:   src-tauri/target/release/bundle/macos/tethr.app
-# Windows: src-tauri/target/release/bundle/nsis/tethr_x.x.x_x64-setup.exe
+# Windows: src-tauri/target/release/bundle/nsis/tethr_x.x.x_x64-setup.exe  (not shipped in releases)
 # Linux:   src-tauri/target/release/bundle/appimage/tethr_x.x.x_amd64.AppImage
 ```
 
@@ -82,7 +79,10 @@ pnpm tauri build
 
 At launch, Tauri finds a free local port, spawns the bundled Node binary running the SvelteKit server, waits for it to be ready, then opens the WebView window.
 
-> **CI:** Multi-platform builds run automatically on tag push via GitHub Actions (`.github/workflows/release.yml`). Push a `v*` tag to trigger a draft release with macOS (arm64 + x86_64), Windows, and Linux bundles.
+> **CI:** Multi-platform builds run automatically on tag push via GitHub Actions (`.github/workflows/release.yml`). Push a `v*` tag to trigger a draft release with the following artifacts:
+> - macOS: `.app` (arm64 + x86_64)
+> - Linux: `.AppImage` (x86_64 + arm64)
+> - Windows: portable `.zip` (x86_64 + arm64) — no installer required
 
 ---
 
@@ -104,7 +104,7 @@ For CCAPI endpoint reference, see [`docs/ccapi-endpoints.md`](docs/ccapi-endpoin
 ## Camera setup
 
 1. On your Canon camera, enable **CCAPI** in the network/WiFi settings
-2. Connect the camera to the same WiFi network as your Mac
+2. Connect the camera to the same WiFi network as your computer
 3. Note the camera's IP address (shown in the camera's network settings)
 4. Launch tethr and enter the IP address in the Settings panel
 
