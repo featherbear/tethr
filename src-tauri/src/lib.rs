@@ -4,11 +4,8 @@ use std::net::TcpListener;
 use std::time::Duration;
 #[cfg(not(debug_assertions))]
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-#[cfg(not(debug_assertions))]
-use tauri_plugin_shell::ShellExt;
 
 /// Ask the OS for a free port by binding to port 0, then immediately release it.
-/// There is a small TOCTOU window, but it is acceptable for a local sidecar.
 #[cfg(not(debug_assertions))]
 fn find_free_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
@@ -24,29 +21,40 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             #[cfg(debug_assertions)]
-            let _app = app; // in dev, app is unused — Vite handles the window
+            let _app = app; // in dev, Vite handles the window
             #[cfg(not(debug_assertions))]
             {
                 let port = find_free_port();
                 let server_url = format!("http://127.0.0.1:{port}");
 
-                // Resolve the path to build/index.js inside Resources
-                let resource_path = app
+                let resource_dir = app
                     .path()
                     .resource_dir()
-                    .expect("could not resolve resource dir")
-                    .join("build/index.js");
+                    .expect("could not resolve resource dir");
 
-                // Spawn the SvelteKit server via Bun sidecar on the chosen port
-                let sidecar_cmd = app
-                    .shell()
-                    .sidecar("bun-server")
-                    .expect("bun-server sidecar not configured")
-                    .args([resource_path.to_str().expect("resource path is not valid UTF-8")])
+                // bun-server and build/ are both shipped as resources
+                let bun_bin = resource_dir.join("bun-server");
+                let index_js = resource_dir.join("build/index.js");
+
+                // Ensure the bun binary is executable (resources may lose +x on some platforms)
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mut perms = std::fs::metadata(&bun_bin)
+                        .expect("bun-server not found in resources")
+                        .permissions();
+                    perms.set_mode(0o755);
+                    std::fs::set_permissions(&bun_bin, perms).ok();
+                }
+
+                // Spawn bun-server via std::process::Command (not Tauri sidecar API)
+                // This avoids linuxdeploy trying to run ldd on the Bun binary.
+                std::process::Command::new(&bun_bin)
+                    .arg(&index_js)
                     .env("PORT", port.to_string())
-                    .env("HOST", "127.0.0.1");
-
-                let (_rx, _child) = sidecar_cmd.spawn().expect("failed to spawn node-server");
+                    .env("HOST", "127.0.0.1")
+                    .spawn()
+                    .expect("failed to spawn bun-server");
 
                 // Poll until the SvelteKit server is ready (max ~10s)
                 let health_url = format!("{server_url}/");

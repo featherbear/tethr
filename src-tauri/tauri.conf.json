@@ -25,9 +25,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/bun-server"],
     "resources": {
-      "../build": "build"
+      "../build": "build",
+      "binaries/bun-server": "bun-server"
     }
   }
 }
