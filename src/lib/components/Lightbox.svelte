@@ -256,7 +256,7 @@
 
         <!-- Shimmer border: visible while display fetch is in progress -->
         {#if shimmer}
-          <div class="shimmer-border"></div>
+          <div class="shimmer-border" class:curved={curvedCorners}></div>
         {/if}
       </div>
     </div>
@@ -518,7 +518,8 @@
   .shimmer-border {
     position: absolute;
     inset: -3px;
-    border-radius: 7px;
+    border-radius: 7px; /* matches default 4px image corner + 3px inset offset */
+    transition: border-radius 0.3s ease;
     pointer-events: none;
     background: linear-gradient(
       90deg,
@@ -533,6 +534,10 @@
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
     padding: 3px;
+  }
+
+  .shimmer-border.curved {
+    border-radius: 23px / 17px; /* matches 20px/14px image corner + 3px inset offset */
   }
 
   @keyframes shimmer-sweep {
