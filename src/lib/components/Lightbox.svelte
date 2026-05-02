@@ -329,7 +329,8 @@
           {/if}
         {/if}
         <span class="sep">·</span>
-        <span class="counter">{photos.length - index} / {photos.length}</span>
+        {@const shownIndex = shownPhoto ? photos.findIndex(p => p.id === shownPhoto!.id) : -1}
+        <span class="counter">{shownIndex >= 0 ? photos.length - shownIndex : '…'} / {photos.length}</span>
       </div>
 
       <!-- Latest mode toggle -->
