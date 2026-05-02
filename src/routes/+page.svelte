@@ -409,6 +409,18 @@
     --accent-border: #334155; /* badge borders (slate-700) */
   }
 
+  /* Light mode: switch to a gold/amber accent palette */
+  @media (prefers-color-scheme: light) {
+    :global(:root) {
+      --accent:        #d97706; /* amber-600 */
+      --accent-dark:   #b45309; /* amber-700 */
+      --accent-light:  #f59e0b; /* amber-400 */
+      --accent-pale:   #fcd34d; /* amber-300 */
+      --accent-rgb:    217, 119, 6;
+      --accent-border: #92400e; /* amber-800 */
+    }
+  }
+
   :global(html, body) {
     height: 100%;
     background: #0a0a0a;
