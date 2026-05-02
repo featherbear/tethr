@@ -164,10 +164,14 @@
         </svg>
       {/if}
     </button>
-    <button class="icon-btn" onclick={onsettings} title="Camera settings" aria-label="Camera settings">
+    <button class="icon-btn" onclick={onsettings} title="Camera connection" aria-label="Camera connection">
       <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M2.93 13.07l1.41-1.41M11.66 4.34l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <!-- Left link -->
+        <rect x="1" y="5.5" width="5.5" height="5" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+        <!-- Right link -->
+        <rect x="9.5" y="5.5" width="5.5" height="5" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+        <!-- Connecting bar -->
+        <line x1="6.5" y1="8" x2="9.5" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
