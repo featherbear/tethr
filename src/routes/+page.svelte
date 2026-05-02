@@ -399,6 +399,16 @@
     padding: 0;
   }
 
+  :global(:root) {
+    /* Accent colour palette — change these to retheme the entire app */
+    --accent:        #6366f1; /* primary buttons, focus rings */
+    --accent-dark:   #4f46e5; /* hover/pressed */
+    --accent-light:  #818cf8; /* badge text, active labels */
+    --accent-pale:   #a5b4fc; /* lightest hover text */
+    --accent-rgb:    99, 102, 241; /* for rgba() usage */
+    --accent-border: #334155; /* badge borders (slate-700) */
+  }
+
   :global(html, body) {
     height: 100%;
     background: #0a0a0a;

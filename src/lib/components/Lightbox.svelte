@@ -362,7 +362,7 @@
   .btn-close      { right: 1rem; z-index: 10; }
   .btn-fullscreen { right: 3.5rem; z-index: 10; }
   .btn-controls   { right: 6rem; z-index: 10; }
-  .btn-controls.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.5); color: #818cf8; }
+  .btn-controls.active { background: rgba(var(--accent-rgb),0.15); border-color: rgba(var(--accent-rgb),0.5); color: var(--accent-light); }
 
   .sr-only {
     position: absolute;
@@ -504,8 +504,8 @@
     padding: 0;
   }
   .toggle.on {
-    background: rgba(99,102,241,0.7);
-    border-color: rgba(99,102,241,0.8);
+    background: rgba(var(--accent-rgb),0.7);
+    border-color: rgba(var(--accent-rgb),0.8);
   }
   .toggle-knob {
     position: absolute;
@@ -611,12 +611,12 @@
 
   .variant-badge {
     background: #1e293b;
-    color: #818cf8;
+    color: var(--accent-light);
     font-size: 0.65rem;
     font-weight: 600;
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
-    border: 1px solid #334155;
+    border: 1px solid var(--accent-border);
     flex-shrink: 0;
   }
 
@@ -651,10 +651,10 @@
     white-space: nowrap;
   }
   .latest-btn.active {
-    background: rgba(99, 102, 241, 0.15);
-    border-color: rgba(99, 102, 241, 0.5);
-    color: #818cf8;
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.5);
+    color: var(--accent-light);
   }
   .latest-btn:hover { border-color: rgba(255,255,255,0.2); color: #e5e7eb; }
-  .latest-btn.active:hover { border-color: rgba(99, 102, 241, 0.8); color: #a5b4fc; }
+  .latest-btn.active:hover { border-color: rgba(var(--accent-rgb), 0.8); color: var(--accent-pale); }
 </style>

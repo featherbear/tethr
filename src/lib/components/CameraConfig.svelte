@@ -143,7 +143,7 @@
   }
 
   select:focus {
-    border-color: #6366f1;
+    border-color: var(--accent);
   }
 
   select:disabled {
@@ -171,7 +171,7 @@
   }
 
   input:focus {
-    border-color: #6366f1;
+    border-color: var(--accent);
   }
 
   input:disabled {
@@ -199,12 +199,12 @@
   }
 
   .btn--primary {
-    background: #6366f1;
+    background: var(--accent);
     color: white;
   }
 
   .btn--primary:hover:not(:disabled) {
-    background: #4f46e5;
+    background: var(--accent-dark);
   }
 
   .btn--danger {

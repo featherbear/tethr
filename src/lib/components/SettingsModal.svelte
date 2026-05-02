@@ -216,7 +216,7 @@
     width: 100%;
   }
 
-  input:focus, select:focus { border-color: #6366f1; }
+  input:focus, select:focus { border-color: var(--accent); }
 
   .hint {
     font-size: 0.75rem;
@@ -254,8 +254,8 @@
 
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .btn--primary { background: #6366f1; color: white; }
-  .btn--primary:hover:not(:disabled) { background: #4f46e5; }
+  .btn--primary { background: var(--accent); color: white; }
+  .btn--primary:hover:not(:disabled) { background: var(--accent-dark); }
 
   .btn--ghost {
     background: transparent;

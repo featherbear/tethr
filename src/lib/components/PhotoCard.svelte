@@ -198,13 +198,13 @@
 
   .variant-badge {
     background: #1e293b;
-    color: #818cf8;
+    color: var(--accent-light);
     font-size: 0.6rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
-    border: 1px solid #334155;
+    border: 1px solid var(--accent-border);
   }
 
   .time {
