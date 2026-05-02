@@ -290,7 +290,7 @@
 
       <!-- Info -->
       <div class="info">
-        <span class="filename">{shownPhoto?.filename ?? photo.filename}</span>
+        <span class="filename">{shownPhoto?.filename ?? ''}</span>
         {#if variantLabel}
           <span class="variant-badge">{variantLabel}</span>
         {/if}
