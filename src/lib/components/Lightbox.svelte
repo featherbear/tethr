@@ -404,7 +404,7 @@
 
   /* Shadow — independent of corner rounding */
   .main-img.shadowed {
-    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
   }
 
   /* Curved corners — only affects border-radius, no shadow change */
