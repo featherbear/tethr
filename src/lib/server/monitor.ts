@@ -1,35 +1,55 @@
 /**
- * monitor.ts — singleton camera monitor
+ * monitor.ts — camera connection manager
  *
- * Runs independently of browser clients. Maintains a persistent connection
- * to the camera and broadcasts events to all SSE subscribers.
+ * Explicit 3-phase state machine:
  *
- * Lifecycle:
- *   - startMonitor() — called once at server startup (via hooks.server.ts)
- *   - reconnect()    — called when settings change; restarts the loop
- *   - subscribe()    — SSE clients register to receive events
+ *   STOPPED
+ *     └─ startMonitor() ──► VERIFY
+ *                               │  GET /ccapi/ver100/deviceinformation (direct, 8s timeout)
+ *                               ├─ fail ──► wait backoff ──► VERIFY
+ *                               └─ ok  ──► CONNECT
+ *                                           │  GET /ccapi/ver100/event/monitoring (direct)
+ *                                           ├─ 503 ──► DELETE (queued) ──► wait 2s ──► CONNECT
+ *                                           ├─ fail ──► wait backoff ──► VERIFY
+ *                                           └─ ok  ──► LIVE
+ *                                                         │  reader.read() — blocks until frame or close
+ *                                                         ├─ done:true ──► wait 1.5s ──► CONNECT
+ *                                                         └─ error     ──► wait backoff ──► VERIFY
+ *
+ * Key invariants:
+ *   - cameraFetchDirect()  for monitoring stream and probes (never blocks queue)
+ *   - cameraFetch()        for everything else (settings, DELETE, thumbnails)
+ *   - setStatus('connecting') fires once on CONNECT entry, not at top of loop
+ *   - Clean close → CONNECT (camera known reachable, skip probe)
+ *   - Error       → VERIFY  (reachability unknown)
  */
 
-import { cameraFetch, cameraFetchRaw, extractFrames } from './camera';
+import { cameraFetch, cameraFetchDirect, extractFrames, getCameraBaseUrl } from './camera';
+import { childLogger } from './logger';
+
+const log = childLogger('monitor');
 
 // ---------------------------------------------------------------------------
-// State
+// Types
 // ---------------------------------------------------------------------------
 
 export type MonitorStatus = 'connecting' | 'live' | 'reconnecting' | 'stopped';
 
 export interface ShootingSettings {
-  av:          string | null;  // aperture e.g. "f2.8"
-  tv:          string | null;  // shutter speed e.g. "1/125"
-  iso:         string | null;  // ISO e.g. "3200"
-  mode:        string | null;  // shooting mode dial e.g. "av", "m"
-  wb:          string | null;  // white balance e.g. "colortemp", "auto"
-  colortemp:   number | null;  // colour temperature in K (when wb=colortemp)
-  exposure:    string | null;  // exposure compensation e.g. "+0.0"
-  metering:    string | null;  // metering mode e.g. "evaluative", "spot"
-  drive:       string | null;  // drive mode e.g. "single", "highspeed"
-  afoperation: string | null;  // AF operation e.g. "manual", "oneshot"
+  av:          string | null;
+  tv:          string | null;
+  iso:         string | null;
+  mode:        string | null;
+  wb:          string | null;
+  colortemp:   number | null;
+  exposure:    string | null;
+  metering:    string | null;
+  drive:       string | null;
+  afoperation: string | null;
 }
+
+export type Event = { type: string; data: unknown };
+export type Subscriber = (event: Event) => void;
 
 // ---------------------------------------------------------------------------
 // HMR-safe globals — survive Vite module reload in dev
@@ -39,28 +59,27 @@ const g = globalThis as any;
 
 function global<T>(key: string, init: () => T): { get: () => T; set: (v: T) => void } {
   if (!(key in g)) g[key] = init();
-  return {
-    get: () => g[key] as T,
-    set: (v: T) => { g[key] = v; },
-  };
+  return { get: () => g[key] as T, set: (v: T) => { g[key] = v; } };
 }
 
-const _statusG    = global<MonitorStatus>('__monitor_status',    () => 'stopped');
-const _errorG     = global<string | null>('__monitor_error',     () => null);
-const _controllerG= global<AbortController | null>('__monitor_ctrl', () => null);
-const _settingsG  = global<ShootingSettings>('__monitor_settings', () => ({ av: null, tv: null, iso: null, mode: null, wb: null, colortemp: null, exposure: null, metering: null, drive: null, afoperation: null }));
-const _subscribersG = global<Set<Subscriber>>('__monitor_subs',  () => new Set());
+const _statusG  = global<MonitorStatus>('__monitor_status', () => 'stopped');
+const _errorG   = global<string | null>('__monitor_error',  () => null);
+const _ctrlG    = global<AbortController | null>('__monitor_ctrl', () => null);
+const _settingsG = global<ShootingSettings>('__monitor_settings', () => ({
+  av: null, tv: null, iso: null, mode: null, wb: null,
+  colortemp: null, exposure: null, metering: null, drive: null, afoperation: null,
+}));
+const _subsG = global<Set<Subscriber>>('__monitor_subs', () => new Set());
 
-// Convenience getters/setters
-function getStatus_()    { return _statusG.get(); }
-function setStatus_(v: MonitorStatus) { _statusG.set(v); }
-function getError_()     { return _errorG.get(); }
-function setError_(v: string | null) { _errorG.set(v); }
-function getController_() { return _controllerG.get(); }
-function setController_(v: AbortController | null) { _controllerG.set(v); }
-function getSettings_()  { return _settingsG.get(); }
-function setSettings_(v: ShootingSettings) { _settingsG.set(v); }
-function getSubs()       { return _subscribersG.get(); }
+const getStatus_    = () => _statusG.get();
+const setStatus_    = (v: MonitorStatus) => _statusG.set(v);
+const getError_     = () => _errorG.get();
+const setError_     = (v: string | null) => _errorG.set(v);
+const getCtrl       = () => _ctrlG.get();
+const setCtrl       = (v: AbortController | null) => _ctrlG.set(v);
+const getSettings_  = () => _settingsG.get();
+const setSettings_  = (v: ShootingSettings) => _settingsG.set(v);
+const getSubs       = () => _subsG.get();
 
 export function getSettings(): Readonly<ShootingSettings> { return getSettings_(); }
 
@@ -68,196 +87,336 @@ export function getSettings(): Readonly<ShootingSettings> { return getSettings_(
 // Subscriber fan-out
 // ---------------------------------------------------------------------------
 
-export type Event = { type: string; data: unknown };
-export type Subscriber = (event: Event) => void;
-
 export function subscribe(sub: Subscriber): () => void {
   getSubs().add(sub);
-  // Send current status immediately
   sub({ type: 'status', data: { status: getStatus_(), error: getError_() } });
-  // Send current settings once so the client has values without waiting for a dial change
   const s = getSettings_();
   if (s.av || s.tv || s.iso) sub({ type: 'settings', data: s });
   return () => getSubs().delete(sub);
 }
 
 function broadcast(type: string, data: unknown) {
-  const event: Event = { type, data };
   for (const sub of getSubs()) {
-    try { sub(event); } catch { /* subscriber gone */ }
+    try { sub({ type, data }); } catch { /* subscriber gone */ }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Monitor loop
+// Status helper
 // ---------------------------------------------------------------------------
-
-const MONITOR_PATH = '/ccapi/ver100/event/monitoring';
-const MIN_BACKOFF = 1_000;
-const MAX_BACKOFF = 30_000;
 
 function setStatus(status: MonitorStatus, error?: string) {
   setStatus_(status);
   setError_(error ?? null);
   broadcast('status', { status, error: error ?? null });
+  if (error) {
+    log.warn({ status, error }, 'Status →');
+  } else {
+    log.info({ status }, 'Status →');
+  }
 }
 
-async function stopExistingSession() {
-  // Send DELETE to ask the camera to release the monitoring slot.
-  // Some cameras (e.g. EOS R50) need a moment after DELETE before accepting a new session.
-  // We wait up to ~6s total, probing with a quick HEAD-like GET to confirm the slot is free.
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MONITOR_PATH  = '/ccapi/ver100/event/monitoring';
+const PROBE_PATH    = '/ccapi/ver100/deviceinformation';
+const SETTINGS_PATH = '/ccapi/ver100/shooting/settings';
+
+const PROBE_TIMEOUT_MS       = 8_000;
+const CLEAN_CLOSE_DELAY_MS   = 1_500;
+const SESSION_CLEAR_DELAY_MS = 2_000;
+const MIN_BACKOFF_MS         = 1_000;
+const MAX_BACKOFF_MS         = 30_000;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Resolves after `ms` ms, or immediately if `signal` fires. */
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>(resolve => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+  });
+}
+
+/** Summarise an error into a loggable object with type + message. */
+function describeError(e: unknown): { errType: string; err: string } {
+  if (e instanceof Error) {
+    const name = e.name; // 'AbortError', 'TimeoutError', 'TypeError', etc.
+    const isAbort   = name === 'AbortError';
+    const isTimeout = name === 'TimeoutError';
+    return {
+      errType: isAbort ? 'abort' : isTimeout ? 'timeout' : name,
+      err: e.message,
+    };
+  }
+  return { errType: 'unknown', err: String(e) };
+}
+
+/**
+ * Verify the camera is reachable by fetching a lightweight endpoint.
+ * Uses cameraFetchDirect so it never blocks or is blocked by the serial queue.
+ * Returns true if the camera responded with 2xx.
+ */
+async function verifyCameraReachable(signal: AbortSignal): Promise<boolean> {
+  try {
+    const res = await cameraFetchDirect(PROBE_PATH, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(PROBE_TIMEOUT_MS)]),
+    });
+    res.body?.cancel().catch(() => {});
+    if (!res.ok) log.debug({ status: res.status }, 'Probe response non-OK');
+    return res.ok;
+  } catch (e) {
+    log.debug({ ...describeError(e) }, 'Probe threw');
+    return false;
+  }
+}
+
+/**
+ * Clear any stuck event session on the camera.
+ * Sends DELETE for the active event path through the serial queue,
+ * then waits a fixed delay for the camera firmware to release the slot.
+ */
+async function clearEventSession(): Promise<void> {
+  log.debug({ path: MONITOR_PATH }, 'Clearing stuck monitoring session (DELETE)');
   await cameraFetch(MONITOR_PATH, {
     method: 'DELETE',
     signal: AbortSignal.timeout(5_000),
   }).catch(() => {});
+  await new Promise(r => setTimeout(r, SESSION_CLEAR_DELAY_MS));
+  log.debug('Event session cleared');
+}
 
-  // Poll until the camera accepts a new connection (status != 503) or we time out.
-  // Use cameraFetchRaw + immediate abort to avoid opening a real stream or blocking the queue.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await new Promise(r => setTimeout(r, 1_000));
-    const ctrl = new AbortController();
-    const probe = await cameraFetchRaw(MONITOR_PATH, { signal: ctrl.signal }).catch(() => null);
-    ctrl.abort(); // immediately abort — we only care about the status code
-    probe?.body?.cancel().catch(() => {});
-    if (!probe || probe.status !== 503) return; // slot is free
+/**
+ * Fetch and broadcast initial shooting settings after going live.
+ * Fire-and-forget — goes through the serial queue at normal priority.
+ * Non-fatal: stream frames will fill in values on dial changes anyway.
+ */
+function fetchInitialSettings(): void {
+  cameraFetch(SETTINGS_PATH, { signal: AbortSignal.timeout(8_000) })
+    .then(async (res) => {
+      if (!res.ok) return;
+      const all = await res.json() as Record<string, { value?: unknown }>;
+      const strVal = (key: string): string | null => {
+        const v = all[key]?.value;
+        return (v !== null && v !== undefined && v !== '') ? String(v) : null;
+      };
+      const ctRaw = all['colortemperature']?.value;
+      const s: ShootingSettings = {
+        av:          strVal('av'),
+        tv:          strVal('tv'),
+        iso:         strVal('iso'),
+        mode:        strVal('shootingmodedial'),
+        wb:          strVal('wb'),
+        colortemp:   typeof ctRaw === 'number' ? ctRaw : null,
+        exposure:    strVal('exposure'),
+        metering:    strVal('metering'),
+        drive:       strVal('drive'),
+        afoperation: strVal('afoperation'),
+      };
+      setSettings_(s);
+      if (s.av || s.tv || s.iso) broadcast('settings', s);
+      log.info({ av: s.av, tv: s.tv, iso: s.iso, mode: s.mode }, 'Initial settings loaded');
+    })
+    .catch((e) => log.warn({ ...describeError(e) }, 'Initial settings fetch failed (non-fatal)'));
+}
+
+/**
+ * Merge a monitoring frame's partial settings into current state.
+ * Broadcasts only when a value actually changed.
+ */
+function applySettingsFrame(parsed: Record<string, unknown>): void {
+  const strVal = (f: unknown) => (f as { value: string } | null)?.value ?? null;
+  const numVal = (f: unknown) => {
+    const v = (f as { value: unknown } | null)?.value;
+    return typeof v === 'number' ? v : null;
+  };
+
+  let s = getSettings_();
+  let changed = false;
+
+  const update = <K extends keyof ShootingSettings>(key: K, val: ShootingSettings[K]) => {
+    if (val !== null && s[key] !== val) { s = { ...s, [key]: val }; changed = true; }
+  };
+
+  if (parsed.av)               update('av',          strVal(parsed.av));
+  if (parsed.tv)               update('tv',          strVal(parsed.tv));
+  if (parsed.iso)              update('iso',         strVal(parsed.iso));
+  if (parsed.shootingmodedial) update('mode',        strVal(parsed.shootingmodedial));
+  if (parsed.wb)               update('wb',          strVal(parsed.wb));
+  if (parsed.colortemperature) update('colortemp',   numVal(parsed.colortemperature));
+  if (parsed.exposure)         update('exposure',    strVal(parsed.exposure));
+  if (parsed.metering)         update('metering',    strVal(parsed.metering));
+  if (parsed.drive)            update('drive',       strVal(parsed.drive));
+  if (parsed.afoperation)      update('afoperation', strVal(parsed.afoperation));
+
+  if (changed) {
+    setSettings_(s);
+    log.debug({ av: s.av, tv: s.tv, iso: s.iso }, 'Settings updated from frame');
+    broadcast('settings', s);
   }
 }
 
-async function runLoop(signal: AbortSignal) {
-  let backoff = MIN_BACKOFF;
-  let everLive = false; // track whether we've had at least one successful connection
+// ---------------------------------------------------------------------------
+// Main loop — state machine
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// LIVE phase — monitoring mode
+// Reads binary-framed chunks from the persistent stream until done or error.
+// Returns: 'clean' if done:true, 'error' + the thrown value otherwise.
+// ---------------------------------------------------------------------------
+
+async function runMonitoringLive(
+  res: Response,
+  signal: AbortSignal
+): Promise<{ result: 'clean' } | { result: 'error'; err: unknown }> {
+  const reader = res.body!.getReader();
+  let remainder = Buffer.alloc(0);
+
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) {
+        log.info('Monitoring stream ended (done:true) — camera closed cleanly');
+        return { result: 'clean' };
+      }
+
+      remainder = Buffer.concat([remainder, Buffer.from(value)]);
+      const { frames, remainder: newRemainder } = extractFrames(remainder);
+      remainder = newRemainder;
+
+      for (const { parsed } of frames) {
+        applySettingsFrame(parsed);
+
+        if (Array.isArray(parsed.addedcontents)) {
+          for (const path of parsed.addedcontents as string[]) {
+            log.info({ path }, 'Shot received');
+            broadcast('shot', { path, settings: { ...getSettings_() } });
+          }
+        }
+
+        const info: Record<string, unknown> = {};
+        if (parsed.battery)    info.battery    = parsed.battery;
+        if (parsed.recordable) info.recordable = parsed.recordable;
+        if (Object.keys(info).length) broadcast('info', info);
+      }
+    }
+    return { result: 'clean' }; // signal aborted
+  } catch (e) {
+    return { result: 'error', err: e };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main loop — state machine
+// ---------------------------------------------------------------------------
+
+async function runLoop(signal: AbortSignal): Promise<void> {
+  let backoff = MIN_BACKOFF_MS;
+
+  type Phase = 'verify' | 'connect' | 'live';
+  let phase: Phase = 'verify';
+
+  log.info({ path: MONITOR_PATH }, 'Monitor loop starting');
 
   while (!signal.aborted) {
-    setStatus('connecting');
 
-    try {
-      // Use cameraFetchRaw — the monitoring stream must NOT go through the serial queue
-      // as it is a persistent connection that would block all other camera requests.
-      // 'Connection: close' ensures Node/undici tears down the TCP connection when the
-      // stream ends — otherwise keep-alive holds it open and the camera won't free the
-      // monitoring slot (causing 503 "Already started" on reconnect).
-      const res = await cameraFetchRaw(MONITOR_PATH, {
-        headers: { 'Connection': 'close' },
-      });
+    // ── VERIFY ──────────────────────────────────────────────────────────────
+    if (phase === 'verify') {
+      setStatus('connecting');
+      log.info({ baseUrl: getCameraBaseUrl() }, 'Verifying camera reachable');
 
+      const reachable = await verifyCameraReachable(signal);
       if (signal.aborted) break;
 
-      if (res.status === 503) {
-        await stopExistingSession();
+      if (!reachable) {
+        log.warn({ backoffMs: backoff, baseUrl: getCameraBaseUrl() }, 'Camera unreachable — backing off');
+        setStatus('reconnecting');
+        await sleep(backoff, signal);
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
         continue;
       }
 
-      if (!res.ok || !res.body) {
-        // Don't expose raw HTTP status codes to the UI — just retry silently
-        throw new Error('Could not connect to camera');
-      }
-
-      // Stream is open — go live immediately so the UI reflects connection.
-      setStatus('live');
-      everLive = true;
-      backoff = MIN_BACKOFF;
-
-      // Fetch initial shooting settings in the background (non-blocking) so the
-      // status bar shows current values immediately without waiting for a dial change.
-      // Verified endpoint on R6 Mark II and EOS R50: GET /ccapi/ver100/shooting/settings
-      cameraFetch('/ccapi/ver100/shooting/settings', { signal: AbortSignal.timeout(5_000) })
-        .then(async (settingsRes) => {
-          if (!settingsRes.ok) return;
-          const all = await settingsRes.json() as Record<string, { value?: unknown }>;
-          const val = (key: string): string | null => {
-            const v = all[key]?.value;
-            return (v !== null && v !== undefined && v !== '') ? String(v) : null;
-          };
-          const ctRaw = all['colortemperature']?.value;
-          const s: ShootingSettings = {
-            av:          val('av'),
-            tv:          val('tv'),
-            iso:         val('iso'),
-            mode:        val('shootingmodedial'),
-            wb:          val('wb'),
-            colortemp:   (typeof ctRaw === 'number') ? ctRaw : null,
-            exposure:    val('exposure'),
-            metering:    val('metering'),
-            drive:       val('drive'),
-            afoperation: val('afoperation'),
-          };
-          setSettings_(s);
-          if (s.av || s.tv || s.iso) broadcast('settings', s);
-        })
-        .catch(() => { /* non-fatal — stream frames will fill in values on dial changes */ });
-
-      const reader = res.body.getReader();
-      let remainder = Buffer.alloc(0);
-
-      while (!signal.aborted) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        remainder = Buffer.concat([remainder, Buffer.from(value)]);
-        const { frames, remainder: newRemainder } = extractFrames(remainder);
-        remainder = newRemainder;
-
-        for (const { parsed } of frames) {
-          // Update settings from this frame (partial updates are common)
-          let settingsChanged = false;
-          let s = getSettings_();
-          const strVal = (f: unknown) => (f as { value: string } | null)?.value ?? null;
-          const numVal = (f: unknown) => { const v = (f as { value: unknown } | null)?.value; return typeof v === 'number' ? v : null; };
-          if (parsed.av)              { s = { ...s, av:          strVal(parsed.av)              }; settingsChanged = true; }
-          if (parsed.tv)              { s = { ...s, tv:          strVal(parsed.tv)              }; settingsChanged = true; }
-          if (parsed.iso)             { s = { ...s, iso:         strVal(parsed.iso)             }; settingsChanged = true; }
-          if (parsed.shootingmodedial){ s = { ...s, mode:        strVal(parsed.shootingmodedial)}; settingsChanged = true; }
-          if (parsed.wb)              { s = { ...s, wb:          strVal(parsed.wb)              }; settingsChanged = true; }
-          if (parsed.colortemperature){ s = { ...s, colortemp:   numVal(parsed.colortemperature)}; settingsChanged = true; }
-          if (parsed.exposure)        { s = { ...s, exposure:    strVal(parsed.exposure)        }; settingsChanged = true; }
-          if (parsed.metering)        { s = { ...s, metering:    strVal(parsed.metering)        }; settingsChanged = true; }
-          if (parsed.drive)           { s = { ...s, drive:       strVal(parsed.drive)           }; settingsChanged = true; }
-          if (parsed.afoperation)     { s = { ...s, afoperation: strVal(parsed.afoperation)     }; settingsChanged = true; }
-          if (settingsChanged) {
-            const prev = getSettings_();
-            // Only broadcast if any value actually changed
-            const changed =
-              s.av !== prev.av || s.tv !== prev.tv || s.iso !== prev.iso ||
-              s.mode !== prev.mode || s.wb !== prev.wb || s.colortemp !== prev.colortemp ||
-              s.exposure !== prev.exposure || s.metering !== prev.metering ||
-              s.drive !== prev.drive || s.afoperation !== prev.afoperation;
-            setSettings_(s);
-            if (changed) broadcast('settings', s);
-          }
-
-          // New photos — attach current settings snapshot to shot event
-          if (Array.isArray(parsed.addedcontents)) {
-            for (const path of parsed.addedcontents as string[]) {
-              broadcast('shot', { path, settings: { ...getSettings_() } });
-            }
-          }
-
-          // Battery / recordable info updates
-          const info: Record<string, unknown> = {};
-          if (parsed.battery)    info.battery    = parsed.battery;
-          if (parsed.recordable) info.recordable = parsed.recordable;
-          if (Object.keys(info).length) broadcast('info', info);
-        }
-      }
-
-      reader.releaseLock();
-
-    } catch (e) {
-      if (signal.aborted) break;
-      // Only surface error details if we've previously been live — otherwise it's
-      // just noise from connecting to a non-camera address (404, ECONNREFUSED, etc.)
-      const msg = everLive ? String(e) : null;
-      setStatus('reconnecting', msg ?? undefined);
-      await new Promise<void>(r => {
-        const t = setTimeout(r, backoff);
-        signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
-      });
-      backoff = Math.min(backoff * 2, MAX_BACKOFF);
+      log.info('Camera reachable');
+      backoff = MIN_BACKOFF_MS;
+      phase = 'connect';
+      continue;
     }
+
+    // ── CONNECT ─────────────────────────────────────────────────────────────
+    if (phase === 'connect') {
+      setStatus('connecting');
+      log.info({ path: MONITOR_PATH }, 'Connecting to monitoring stream');
+
+      let res: Response;
+      try {
+        res = await cameraFetchDirect(MONITOR_PATH, {
+          headers: { 'Connection': 'close' },
+          signal,
+        });
+      } catch (e) {
+        if (signal.aborted) break;
+        log.warn({ ...describeError(e) }, 'Monitoring connect threw — back to verify');
+        setStatus('reconnecting');
+        await sleep(backoff, signal);
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+        phase = 'verify';
+        continue;
+      }
+
+      if (signal.aborted) break;
+      log.info({ status: res.status }, 'Monitoring connect response');
+
+      if (res.status === 503) {
+        res.body?.cancel().catch(() => {});
+        log.warn('503 on monitoring connect — clearing stuck session');
+        await clearEventSession();
+        continue; // retry connect
+      }
+
+      if (!res.ok || !res.body) {
+        log.warn({ status: res.status }, 'Unexpected monitoring response — back to verify');
+        res.body?.cancel().catch(() => {});
+        setStatus('reconnecting');
+        await sleep(backoff, signal);
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+        phase = 'verify';
+        continue;
+      }
+
+      setStatus('live');
+      backoff = MIN_BACKOFF_MS;
+      fetchInitialSettings();
+      phase = 'live';
+
+      // ── LIVE (monitoring) ────────────────────────────────────────────────
+      const liveResult = await runMonitoringLive(res, signal);
+      if (signal.aborted) break;
+
+      if (liveResult.result === 'error') {
+        log.warn({ ...describeError(liveResult.err), backoffMs: backoff }, 'Monitoring read error — back to verify');
+        setStatus('reconnecting');
+        await sleep(backoff, signal);
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+        phase = 'verify';
+      } else {
+        log.info({ delayMs: CLEAN_CLOSE_DELAY_MS }, 'Monitoring clean close — reconnecting');
+        setStatus('reconnecting');
+        await sleep(CLEAN_CLOSE_DELAY_MS, signal);
+        phase = 'connect';
+      }
+    }
+
   }
 
-  await stopExistingSession();
   setStatus('stopped');
+  log.info('Monitor loop stopped');
 }
 
 // ---------------------------------------------------------------------------
@@ -265,21 +424,23 @@ async function runLoop(signal: AbortSignal) {
 // ---------------------------------------------------------------------------
 
 /** Start (or restart) the monitor loop. Safe to call multiple times. */
-export function startMonitor() {
-  // Abort any existing loop
-  getController_()?.abort();
+export function startMonitor(): void {
+  const had = getCtrl() !== null;
+  getCtrl()?.abort();
   const ctrl = new AbortController();
-  setController_(ctrl);
-  runLoop(ctrl.signal).catch(console.error);
+  setCtrl(ctrl);
+  log.info(had ? 'Restarting monitor' : 'Starting monitor');
+  runLoop(ctrl.signal).catch((e) => log.error({ ...describeError(e) }, 'Monitor loop crashed'));
 }
 
-/** Stop the monitor loop (e.g. on server shutdown). */
-export function stopMonitor() {
-  getController_()?.abort();
-  setController_(null);
+/** Stop the monitor loop and set status to stopped. */
+export function stopMonitor(): void {
+  log.info('Stopping monitor');
+  getCtrl()?.abort();
+  setCtrl(null);
 }
 
-/** Current connection status */
+/** Current connection status + error. */
 export function getStatus(): { status: MonitorStatus; error: string | null } {
   return { status: getStatus_(), error: getError_() };
 }
