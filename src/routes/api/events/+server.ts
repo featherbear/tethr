@@ -11,9 +11,17 @@
  */
 
 import type { RequestHandler } from './$types';
-import { subscribe } from '$lib/server/monitor';
+import { subscribe, startMonitor, getStatus } from '$lib/server/monitor';
 
 export const GET: RequestHandler = ({ request }) => {
+  // Start the monitor lazily on first SSE connection — this ensures the
+  // initial device-info / state requests from the frontend complete first,
+  // avoiding queue contention that causes the camera to drop the stream.
+  const { status } = getStatus();
+  if (status === 'stopped') {
+    startMonitor();
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();

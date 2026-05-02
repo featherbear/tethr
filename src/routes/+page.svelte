@@ -9,6 +9,9 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
   import Lightbox from '$lib/components/Lightbox.svelte';
+  import { childLog } from '$lib/logger';
+
+  const log = childLog('page');
 
   let eventSource: EventSource | null = null;
   let showSettings = $state(false);
@@ -116,9 +119,12 @@
       const res = await fetch('/api/state');
       if (!res.ok) return;
       const { status, error, cameraInfo } = await res.json();
+      log.info({ status, cameraInfo: cameraInfo?.productname }, 'Initial state loaded');
       cameraStore.setStatus(status, error ?? undefined);
       if (cameraInfo) cameraInfoStore.set(cameraInfo);
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      log.warn({ err: e }, 'Failed to load initial state');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -126,12 +132,14 @@
   // ---------------------------------------------------------------------------
   function startEventStream() {
     if (!browser || eventSource) return;
+    log.info('Starting SSE event stream');
     eventSource = new EventSource('/api/events');
 
     let badAddressTimer: ReturnType<typeof setTimeout> | null = null;
 
     eventSource.addEventListener('status', (e) => {
       const { status, error } = JSON.parse(e.data);
+      log.info({ status, error }, 'SSE status event');
       cameraStore.setStatus(status, error);
 
       // Fetch camera info when we first go live
@@ -167,6 +175,7 @@
       const parts = path.split('/');
       const filename = parts.pop()!;
       const dirname = parts.join('/');
+      log.info({ path, filename }, 'Shot event received');
       const id = photosStore.addOrMerge(dirname, filename, settings);
       enqueueThumbnail(id, dirname, filename);
       // Cancel idle prefetch timer and flush pending display jobs — camera is active
@@ -196,6 +205,7 @@
 
     eventSource.onerror = () => {
       // EventSource reconnects automatically; status updates come via 'status' events
+      log.warn('SSE connection error — EventSource will reconnect automatically');
     };
   }
 
@@ -223,9 +233,11 @@
 
   async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
     const camPath = toApiPath(`${dirname}/${filename}`);
+    log.debug({ id, camPath, attempt }, 'Fetching thumbnail');
     try {
       const res = await fetch(`/api/thumbnail/${camPath}`);
       if (!res.ok) {
+        log.warn({ id, camPath, status: res.status, attempt }, 'Thumbnail fetch failed');
         // Retry on transient camera errors (503, 502) with backoff
         if (attempt < THUMB_MAX_RETRIES && (res.status === 503 || res.status === 502)) {
           const delay = THUMB_RETRY_DELAY_MS * (attempt + 1);
@@ -238,6 +250,7 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
+      log.info({ id, camPath }, 'Thumbnail loaded');
       // If lightbox is open and showing this photo, fetch display at urgent priority
       const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
       if (currentPhoto?.id === id) {
@@ -246,7 +259,9 @@
         // Otherwise schedule idle prefetch
         scheduleIdlePrefetch();
       }
-    } catch { /* silent */ }
+    } catch (e) {
+      log.warn({ err: e, id, camPath }, 'Thumbnail fetch threw');
+    }
   }
 
   const DISPLAY_MAX_RETRIES = 3;
@@ -264,10 +279,12 @@
     if (!displayVariant) return;
 
     const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
+    log.debug({ id, camPath, attempt }, 'Fetching display image');
     try {
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
       if (!res.ok || !res.body) {
+        log.warn({ id, camPath, status: res.status, attempt }, 'Display fetch failed');
         photosStore.setDisplayProgress(id, null);
         if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
           const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
@@ -295,7 +312,11 @@
       const blob = new Blob(chunks, { type: 'image/jpeg' });
       const url = URL.createObjectURL(blob);
       photosStore.setDisplay(id, url);
-    } catch { photosStore.setDisplayProgress(id, null); }
+      log.info({ id, camPath, bytes: received }, 'Display image loaded');
+    } catch (e) {
+      log.warn({ err: e, id, camPath }, 'Display fetch threw');
+      photosStore.setDisplayProgress(id, null);
+    }
   }
 
   // ---------------------------------------------------------------------------

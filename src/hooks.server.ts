@@ -5,13 +5,24 @@
  * The monitor runs independently of any browser clients.
  */
 
-import { startMonitor, getStatus } from '$lib/server/monitor';
+import { logger } from '$lib/server/logger';
 
-// Start monitoring on server boot.
-// Guard against HMR re-execution: only start if not already running.
-const { status } = getStatus();
-if (status === 'stopped') {
-  startMonitor();
-}
+logger.info({ node: process.version }, 'Tethr server starting');
 
-export const handle = async ({ event, resolve }) => resolve(event);
+// Monitor is started lazily on first SSE client connection (/api/events),
+// not on boot — this avoids a race where the monitor floods the serial queue
+// before the frontend has finished its initial requests (device info, state).
+
+export const handle = async ({ event, resolve }) => {
+  const start = Date.now();
+  const response = await resolve(event);
+  const ms = Date.now() - start;
+  // Only log API routes — static assets are noise
+  if (event.url.pathname.startsWith('/api/')) {
+    logger.debug(
+      { method: event.request.method, path: event.url.pathname, status: response.status, ms },
+      'API request'
+    );
+  }
+  return response;
+};
