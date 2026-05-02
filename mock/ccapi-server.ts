@@ -5,6 +5,8 @@
  * Run with: bun run mock/ccapi-server.ts
  */
 
+import { Jimp, JimpMime, loadFont } from 'jimp';
+
 const PORT = 8080;
 const SHOT_INTERVAL_MS = 5000; // auto-fire a shot every 5s
 
@@ -59,18 +61,101 @@ setInterval(() => {
 }, SHOT_INTERVAL_MS);
 
 // ---------------------------------------------------------------------------
-// Dummy JPEG (1×1 red pixel)
+// Image generation
+//
+// Per-filename images for consistent previews:
+//   - Online:  fetch from picsum.photos (seeded by shot number for consistency)
+//   - Offline: generate a JPEG locally using a coloured canvas with filename + date text
+//
+// Thumbnail = 320×213, Display = 1920×1280
 // ---------------------------------------------------------------------------
-const TINY_JPEG_B64 =
-  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U' +
-  'HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgN' +
-  'DRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy' +
-  'MjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUEB' +
-  '/8QAIRAAAgIBBAMBAAAAAAAAAAAAAQIDBAUREiExQVH/xAAUAQEAAAAAAAAAAAAAAAAAAAAA' +
-  '/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Amu69bYpRjGKlJJerFbSWy' +
-  'AAAAASUVORK5CYII=';
-const dummyJpeg = Buffer.from(TINY_JPEG_B64, 'base64');
-const jpegResponse = () => new Response(dummyJpeg, { headers: { 'Content-Type': 'image/jpeg' } });
+
+/** Derive a stable numeric seed from a filename string. */
+function seedFromFilename(filename: string): number {
+  let h = 0;
+  for (const c of filename) h = (Math.imul(31, h) + c.charCodeAt(0)) >>> 0;
+  return (h % 1000) + 1; // picsum IDs 1–1000
+}
+
+/** Try to fetch an image from picsum.photos. Returns null on network failure. */
+async function fetchPicsum(seed: number, w: number, h: number): Promise<Buffer | null> {
+  try {
+    const res = await fetch(`https://picsum.photos/seed/${seed}/${w}/${h}`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generate a fallback JPEG locally using Jimp.
+ * Draws a dark background with filename and timestamp centered.
+ * Used when picsum.photos is unreachable (no internet).
+ */
+let _font16: Awaited<ReturnType<typeof loadFont>> | null = null;
+let _font32: Awaited<ReturnType<typeof loadFont>> | null = null;
+
+async function getFont(size: 16 | 32) {
+  const { createRequire } = await import('module');
+  const req = createRequire(import.meta.url);
+  const pluginPkg = req.resolve('@jimp/plugin-print/package.json');
+  const fontDir = pluginPkg.replace('package.json', `fonts/open-sans/open-sans-${size}-white`);
+  return loadFont(`file://${fontDir}/open-sans-${size}-white.fnt`);
+}
+
+async function generateFallbackJpeg(label: string, w: number, h: number): Promise<Buffer> {
+  try {
+    if (!_font16) _font16 = await getFont(16);
+    if (!_font32) _font32 = await getFont(32);
+
+    const img = new Jimp({ width: w, height: h, color: 0x1a1a2eff });
+
+    // Draw a subtle grid
+    for (let x = 0; x < w; x += 60) {
+      for (let y = 0; y < h; y++) img.setPixelColor(0x2a2a4eff, x, y);
+    }
+    for (let y = 0; y < h; y += 60) {
+      for (let x = 0; x < w; x++) img.setPixelColor(0x2a2a4eff, x, y);
+    }
+
+    const font = w >= 800 ? _font32 : _font16;
+    const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    img.print({ font, x: 0, y: Math.floor(h / 2) - 30, text: { text: label, alignmentX: 1 }, maxWidth: w });
+    img.print({ font: _font16, x: 0, y: Math.floor(h / 2) + 10, text: { text: ts, alignmentX: 1 }, maxWidth: w });
+
+    return Buffer.from(await img.getBuffer(JimpMime.jpeg));
+  } catch {
+    // Ultimate fallback — tiny 1×1 grey JPEG
+    return Buffer.from(
+      '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U' +
+      'HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAARCAABAAEDASIA' +
+      'AhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAU' +
+      'AQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8A' +
+      'JQAB/9k=',
+      'base64'
+    );
+  }
+}
+
+/** Return an image response for a given filename and kind. */
+async function imageResponse(filename: string, kind: 'thumbnail' | 'display' | 'original'): Promise<Response> {
+  const isThumb = kind === 'thumbnail';
+  const w = isThumb ? 320 : 1920;
+  const h = isThumb ? 213 : 1280;
+  const seed = seedFromFilename(filename);
+
+  const buf = (await fetchPicsum(seed, w, h)) ?? (await generateFallbackJpeg(filename, w, h));
+  return new Response(buf, {
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Content-Length': String(buf.length),
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Shooting settings (mock values)
@@ -192,7 +277,8 @@ Bun.serve({
     // Image files — thumbnail, display, original
     if (path.match(/\/ccapi\/ver120\/contents\/.*\.(JPG|CR3)$/i)) {
       if (kind === 'thumbnail' || kind === 'display' || kind === 'original') {
-        return jpegResponse();
+        const filename = path.split('/').pop()!;
+        return imageResponse(filename, kind as 'thumbnail' | 'display' | 'original');
       }
       return Response.json({ message: 'invalid kind parameter' }, { status: 400 });
     }
