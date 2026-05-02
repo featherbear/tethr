@@ -13,16 +13,16 @@ Built with **Tauri v2 + SvelteKit (Svelte 5)**, using the [Canon Camera Control 
 - **Photo grid** — scrollable grid with smooth entry animations, newest photos at the top
 - **Lightbox** — click any photo to view it full-screen
 - **Status bar** — live camera name, lens, shooting mode, aperture, shutter speed, ISO, battery level (numeric %), and card space remaining
-- **Camera settings** — configure camera IP/port via a settings panel; validates the address is a real Canon camera before connecting
-- **Auto-reconnect** — exponential backoff reconnect loop; automatically prompts for the camera address if no connection is established
-- **Multi-camera support** — works with any Canon camera that supports CCAPI (tested on EOS R6 Mark II and EOS R50)
+- **Camera support** — works with any Canon camera that has CCAPI enabled (tested on EOS R6 Mark II and EOS R50)
 
 ---
 
 ## Requirements
 
 - macOS, Windows, or Linux
-- Canon camera with CCAPI enabled, connected to the same WiFi network
+- Canon camera with **CCAPI enabled** and connected to the same WiFi network
+  - On the camera: go to network/WiFi settings → enable CCAPI
+  - See [Camera setup](#camera-setup) section below for details
 - Node.js ≥ 22 (24 recommended)
 - [pnpm](https://pnpm.io) (`npm install -g pnpm`)
 - Rust + Cargo (via [rustup](https://rustup.rs)) — only needed for Tauri builds
