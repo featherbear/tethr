@@ -198,22 +198,23 @@
         ><span class="toggle-knob"></span></button>
       </label>
       <label class="control-row">
-        <span class="control-label">Image shadow</span>
-        <button
-          class="toggle"
-          class:on={shadowEnabled}
-          onclick={() => shadowEnabled = !shadowEnabled}
-          aria-pressed={shadowEnabled}
-          role="switch"
-        ><span class="toggle-knob"></span></button>
-      </label>
-      <label class="control-row">
         <span class="control-label">Ambient backlight</span>
         <button
           class="toggle"
           class:on={ambientEnabled}
           onclick={() => ambientEnabled = !ambientEnabled}
           aria-pressed={ambientEnabled}
+          role="switch"
+        ><span class="toggle-knob"></span></button>
+      </label>
+      <label class="control-row" class:disabled={!ambientEnabled}>
+        <span class="control-label">Image shadow</span>
+        <button
+          class="toggle"
+          class:on={shadowEnabled && ambientEnabled}
+          onclick={() => { if (ambientEnabled) shadowEnabled = !shadowEnabled; }}
+          aria-pressed={shadowEnabled && ambientEnabled}
+          aria-disabled={!ambientEnabled}
           role="switch"
         ><span class="toggle-knob"></span></button>
       </label>
@@ -233,7 +234,7 @@
       <div class="image-wrap">
         <!-- Layer 1 (bg): last confirmed good image — crossfade source -->
         {#if shownUrl}
-          <img src={shownUrl} alt={photo.filename} class="main-img" class:curved={curvedCorners} class:shadowed={shadowEnabled} />
+          <img src={shownUrl} alt={photo.filename} class="main-img" class:curved={curvedCorners} class:shadowed={shadowEnabled && ambientEnabled} />
         {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
@@ -248,7 +249,7 @@
             alt={photo.filename}
             class="main-img main-img--top"
             class:curved={curvedCorners}
-            class:shadowed={shadowEnabled}
+            class:shadowed={shadowEnabled && ambientEnabled}
             onload={() => { shownUrl = targetUrl; }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
@@ -480,6 +481,13 @@
   .control-label {
     font-size: 0.8rem;
     color: #d1d5db;
+    transition: color 0.2s;
+  }
+
+  .control-row.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 
   /* Toggle switch */
