@@ -119,6 +119,12 @@
   // Show photo settings or fall back to live settings if photo has none
   const displaySettings = $derived(shownPhoto?.settings ?? liveSettings);
 
+  const shownCounter = $derived.by(() => {
+    if (!shownPhoto) return '…';
+    const i = photos.findIndex(p => p.id === shownPhoto.id);
+    return i >= 0 ? photos.length - i : '…';
+  });
+
   const METERING: Record<string, string> = {
     evaluative:              '⬡ Evaluative',
     spot:                    '⊙ Spot',
@@ -329,8 +335,7 @@
           {/if}
         {/if}
         <span class="sep">·</span>
-        {@const shownIndex = shownPhoto ? photos.findIndex(p => p.id === shownPhoto!.id) : -1}
-        <span class="counter">{shownIndex >= 0 ? photos.length - shownIndex : '…'} / {photos.length}</span>
+        <span class="counter">{shownCounter} / {photos.length}</span>
       </div>
 
       <!-- Latest mode toggle -->
