@@ -14,17 +14,24 @@ const monitorClients: Set<StreamController> = new Set();
 
 // ---------------------------------------------------------------------------
 // Frame encoder (matches real camera binary framing)
+//
+// Real camera frame format (variant B — used for all frames after the first):
+//   0xff 0xff 0xff 0x00 0x02  [4-byte BE payload length]  [JSON payload]
+//   ←────── 5 magic bytes ──→  ←──── 4 bytes ────────→
+// Total header = 9 bytes. extractFrames() in camera.ts detects this by
+// checking bytes[1..4] === ff ff 00 02 and reads length from offset 5.
 // ---------------------------------------------------------------------------
-const FRAME_MAGIC = new Uint8Array([0xff, 0xff, 0xff, 0x00, 0x02, 0x00, 0x00, 0x00]);
+const FRAME_HEADER = new Uint8Array([0xff, 0xff, 0xff, 0x00, 0x02]);
 
 function makeFrame(json: object): Uint8Array {
   const payload = new TextEncoder().encode(JSON.stringify(json));
   const lenBuf = new Uint8Array(4);
-  new DataView(lenBuf.buffer).setUint32(0, payload.length, false);
-  const frame = new Uint8Array(FRAME_MAGIC.length + 4 + payload.length);
-  frame.set(FRAME_MAGIC, 0);
-  frame.set(lenBuf, FRAME_MAGIC.length);
-  frame.set(payload, FRAME_MAGIC.length + 4);
+  new DataView(lenBuf.buffer).setUint32(0, payload.length, false); // BE uint32
+  // Header: 5 magic bytes + 4 length bytes = 9 bytes total
+  const frame = new Uint8Array(FRAME_HEADER.length + 4 + payload.length);
+  frame.set(FRAME_HEADER, 0);
+  frame.set(lenBuf, FRAME_HEADER.length);
+  frame.set(payload, FRAME_HEADER.length + 4);
   return frame;
 }
 
