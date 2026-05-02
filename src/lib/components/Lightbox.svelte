@@ -198,7 +198,7 @@
         ><span class="toggle-knob"></span></button>
       </label>
       <label class="control-row">
-        <span class="control-label">Shadow</span>
+        <span class="control-label">Image shadow</span>
         <button
           class="toggle"
           class:on={shadowEnabled}
@@ -225,8 +225,9 @@
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
 
       <!-- Ambient backlight: blurred copy of the image radiating behind it -->
-      {#if ambientEnabled && shownUrl}
-        <img src={shownUrl} alt="" aria-hidden="true" class="ambient-glow" />
+      <!-- Always rendered (when image available) so opacity transition can fade it -->
+      {#if shownUrl}
+        <img src={shownUrl} alt="" aria-hidden="true" class="ambient-glow" class:ambient-off={!ambientEnabled} />
       {/if}
 
       <div class="image-wrap">
@@ -407,7 +408,7 @@
 
   /* Curved corners — only affects border-radius, no shadow change */
   .main-img.curved {
-    border-radius: 12px / 8px;
+    border-radius: 20px / 14px;
   }
 
   .main-img--top {
@@ -433,7 +434,10 @@
     pointer-events: none;
     transform: scale(1.15);
     z-index: 0;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.5s ease;
+  }
+  .ambient-glow.ambient-off {
+    opacity: 0;
   }
 
   .image-wrap { position: relative; z-index: 1; }
