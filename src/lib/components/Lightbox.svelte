@@ -58,9 +58,15 @@
   );
 
   // shownPhoto: the photo whose details are shown in the info bar.
-  // Updated only when shownUrl changes (i.e. new image has landed) so the
-  // filename/EXIF text never races ahead of the visible image.
+  // Only updated when the HD display image actually lands on screen — never
+  // when photo changes, never on thumbnail load, never on shimmer start.
   let shownPhoto = $state<typeof photo>(untrack(() => photos[initialIndex] ?? null));
+
+  // Track the display URL that was last confirmed visible so we can match it
+  // to its owning photo when shownUrl updates.
+  let shownDisplayUrl = $state<string | null>(
+    untrack(() => photos[initialIndex]?.displayUrl ?? null)
+  );
 
   // Track processed photo id to detect photo changes
   let processedId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
@@ -73,12 +79,15 @@
     if (!photo.displayUrl && photo.displayProgress === null) {
       onfetchdisplay?.(id);
     }
-    // If there's no image at all yet (not even a thumbnail), update shownPhoto
-    // immediately — otherwise the bar would stay frozen on the previous photo forever.
-    // When a thumbnail exists but no display yet, we wait for the HD image (shimmer done).
-    if (!photo.displayUrl && !photo.thumbnailUrl) {
-      shownPhoto = photo;
-    }
+  });
+
+  // Update shownPhoto when the display URL that is visible changes.
+  // This fires AFTER the HD image has loaded and shownDisplayUrl has been set —
+  // ensuring the info bar only updates once the new image is actually on screen.
+  $effect(() => {
+    if (!shownDisplayUrl) return;
+    const match = photos.find(p => p.displayUrl === shownDisplayUrl);
+    if (match) shownPhoto = match;
   });
 
   // The URL we want to show next (drives the fade-in layer)
@@ -263,9 +272,11 @@
             class:shadowed={shadowEnabled && ambientEnabled}
             onload={() => {
               shownUrl = targetUrl;
-              // Only reveal the new photo's details once the display-quality image
-              // has landed (i.e. when the shimmer is done). Thumbnail swaps don't count.
-              if (targetUrl === photo?.displayUrl) shownPhoto = photo;
+              // Only advance the info bar when the HD display image lands.
+              // Setting shownDisplayUrl triggers the $effect that updates shownPhoto.
+              if (targetUrl && targetUrl === photo?.displayUrl) {
+                shownDisplayUrl = targetUrl;
+              }
             }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
