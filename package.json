@@ -14,7 +14,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
     "mock": "bun run mock/ccapi-server.ts",
-    "dev:mock": "concurrently \"pnpm mock\" \"pnpm dev\"",
+    "dev:mock": "concurrently \"pnpm mock\" \"CCAPI_BASE_URL=http://localhost:8080 pnpm dev\"",
     "sidecar": "node scripts/setup-sidecar.mjs"
   },
   "license": "MIT",

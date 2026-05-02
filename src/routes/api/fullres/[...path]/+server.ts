@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ params }) => {
     return new Response(res.body, {
       headers: {
         'Content-Type': res.headers.get('Content-Type') ?? 'image/jpeg',
-        'Cache-Control': 'public, max-age=86400, immutable',
+        'Cache-Control': 'no-store',
         'Content-Length': res.headers.get('Content-Length') ?? '',
       },
     });

@@ -5,10 +5,10 @@
  * Run with: bun run mock/ccapi-server.ts
  */
 
-import { Jimp, JimpMime, loadFont } from 'jimp';
+import { Jimp, JimpMime, HorizontalAlign, VerticalAlign, loadFont } from 'jimp';
 
 const PORT = 8080;
-const SHOT_INTERVAL_MS = 5000; // auto-fire a shot every 5s
+const SHOT_INTERVAL_MS = 10_000; // auto-fire a shot every 10s
 
 let shotCounter = 0;
 type StreamController = ReadableStreamDefaultController<Uint8Array>;
@@ -70,15 +70,27 @@ setInterval(() => {
 // Thumbnail = 320×213, Display = 1920×1280
 // ---------------------------------------------------------------------------
 
-/** Derive a stable numeric seed from a filename string. */
+// When set, skip picsum.photos and always use local Jimp image generation.
+// Useful for offline development or to avoid network round-trips.
+//   MOCK_LOCAL_IMAGES=1 bun run mock/ccapi-server.ts
+const LOCAL_IMAGES = Boolean(process.env.MOCK_LOCAL_IMAGES);
+
+/**
+ * Derive a stable numeric seed from a filename string.
+ * The extension is stripped first so that IMG_0001.CR3 and IMG_0001.JPG
+ * produce the same seed — and therefore the same stock image.
+ */
 function seedFromFilename(filename: string): number {
+  // Strip extension: "IMG_0001.CR3" → "IMG_0001"
+  const base = filename.replace(/\.[^.]+$/, '');
   let h = 0;
-  for (const c of filename) h = (Math.imul(31, h) + c.charCodeAt(0)) >>> 0;
+  for (const c of base) h = (Math.imul(31, h) + c.charCodeAt(0)) >>> 0;
   return (h % 1000) + 1; // picsum IDs 1–1000
 }
 
 /** Try to fetch an image from picsum.photos. Returns null on network failure. */
 async function fetchPicsum(seed: number, w: number, h: number): Promise<Buffer | null> {
+  if (LOCAL_IMAGES) return null; // local-only mode — skip network entirely
   try {
     const res = await fetch(`https://picsum.photos/seed/${seed}/${w}/${h}`, {
       signal: AbortSignal.timeout(5_000),
@@ -124,8 +136,8 @@ async function generateFallbackJpeg(label: string, w: number, h: number): Promis
     const font = w >= 800 ? _font32 : _font16;
     const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    img.print({ font, x: 0, y: Math.floor(h / 2) - 30, text: { text: label, alignmentX: 1 }, maxWidth: w });
-    img.print({ font: _font16, x: 0, y: Math.floor(h / 2) + 10, text: { text: ts, alignmentX: 1 }, maxWidth: w });
+    img.print({ font, x: 0, y: Math.floor(h / 2) - 30, text: { text: label, alignmentX: HorizontalAlign.CENTER }, maxWidth: w });
+    img.print({ font: _font16, x: 0, y: Math.floor(h / 2) + 10, text: { text: ts, alignmentX: HorizontalAlign.CENTER }, maxWidth: w });
 
     return Buffer.from(await img.getBuffer(JimpMime.jpeg));
   } catch {
@@ -146,9 +158,10 @@ async function imageResponse(filename: string, kind: 'thumbnail' | 'display' | '
   const isThumb = kind === 'thumbnail';
   const w = isThumb ? 320 : 1920;
   const h = isThumb ? 213 : 1280;
-  const seed = seedFromFilename(filename);
-
-  const buf = (await fetchPicsum(seed, w, h)) ?? (await generateFallbackJpeg(filename, w, h));
+  // Strip extension so CR3 and JPG variants share the same seed / label
+  const base = filename.replace(/\.[^.]+$/, '');
+  const seed = seedFromFilename(filename); // seedFromFilename also strips, but be explicit here
+  const buf = (await fetchPicsum(seed, w, h)) ?? (await generateFallbackJpeg(base, w, h));
   return new Response(buf, {
     headers: {
       'Content-Type': 'image/jpeg',
@@ -345,4 +358,5 @@ Bun.serve({
 
 console.log(`[mock] Canon CCAPI mock server running on http://localhost:${PORT}`);
 console.log(`[mock] Auto-firing RAW+JPG pairs every ${SHOT_INTERVAL_MS / 1000}s`);
+console.log(`[mock] Image mode: ${LOCAL_IMAGES ? 'local (Jimp, no network)' : 'picsum.photos (falls back to Jimp offline)'}`);
 console.log(`[mock] Press Ctrl+C to stop`);

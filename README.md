@@ -64,6 +64,17 @@ pnpm tauri dev
 
 ---
 
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `CCAPI_BASE_URL` | `http://192.168.1.26:8080` | Initial camera URL (scheme + host + port). Acts as a default only — the camera address can be changed at runtime via the Settings panel in the app. |
+| `MOCK_LOCAL_IMAGES` | _(unset)_ | Set to `1` to disable picsum.photos and generate images locally with Jimp (useful offline). |
+
+> `MOCK_LOCAL_IMAGES` only affects the mock CCAPI server (`pnpm mock` / `pnpm dev:mock`).
+
+---
+
 ## Production build
 
 The bundle is fully self-contained — no external Node.js required:
