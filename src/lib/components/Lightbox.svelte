@@ -17,6 +17,11 @@
   let latestMode = $state(false);
   let isFullscreen = $state(false);
 
+  // Display controls
+  let showControls = $state(false);
+  let curveEnabled = $state(true);
+  let ambientEnabled = $state(true);
+
   // Track viewed photo by ID (stable across array prepends)
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
 
@@ -144,6 +149,7 @@
     if (e.key === 'ArrowRight')   { next(); return; }
     if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
     if (e.key === 'l' || e.key === 'L') { latestMode = !latestMode; return; }
+    if (e.key === 'c' || e.key === 'C') { showControls = !showControls; return; }
   }
 
   // Listen for external fullscreen change (e.g. user presses Esc in native fullscreen)
@@ -167,13 +173,55 @@
     <span class="sr-only">{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
   </button>
 
+  <!-- Display Controls button -->
+  <button
+    class="btn-icon btn-controls"
+    class:active={showControls}
+    onclick={() => showControls = !showControls}
+    title="Display controls (C)"
+    aria-label="Toggle display controls"
+  >⚙</button>
+
+  <!-- Display Controls panel -->
+  {#if showControls}
+    <div class="controls-panel" transition:fade={{ duration: 120 }} onclick={(e) => e.stopPropagation()}>
+      <div class="controls-title">Display controls</div>
+      <label class="control-row">
+        <span class="control-label">Curved image</span>
+        <button
+          class="toggle"
+          class:on={curveEnabled}
+          onclick={() => curveEnabled = !curveEnabled}
+          aria-pressed={curveEnabled}
+          role="switch"
+        ><span class="toggle-knob"></span></button>
+      </label>
+      <label class="control-row">
+        <span class="control-label">Ambient backlight</span>
+        <button
+          class="toggle"
+          class:on={ambientEnabled}
+          onclick={() => ambientEnabled = !ambientEnabled}
+          aria-pressed={ambientEnabled}
+          role="switch"
+        ><span class="toggle-knob"></span></button>
+      </label>
+    </div>
+  {/if}
+
   <!-- Main image area -->
   {#if photo}
     <div class="image-area" onclick={(e) => e.stopPropagation()}>
+
+      <!-- Ambient backlight: blurred copy of the image radiating behind it -->
+      {#if ambientEnabled && shownUrl}
+        <img src={shownUrl} alt="" aria-hidden="true" class="ambient-glow" />
+      {/if}
+
       <div class="image-wrap">
         <!-- Layer 1 (bg): last confirmed good image — crossfade source -->
         {#if shownUrl}
-          <img src={shownUrl} alt={photo.filename} class="main-img" />
+          <img src={shownUrl} alt={photo.filename} class="main-img" class:curved={curveEnabled} />
         {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
@@ -187,6 +235,7 @@
             src={targetUrl}
             alt={photo.filename}
             class="main-img main-img--top"
+            class:curved={curveEnabled}
             onload={() => { shownUrl = targetUrl; }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
@@ -298,6 +347,8 @@
 
   .btn-close      { right: 1rem; z-index: 10; }
   .btn-fullscreen { right: 3.5rem; z-index: 10; }
+  .btn-controls   { right: 6rem; z-index: 10; }
+  .btn-controls.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.5); color: #818cf8; }
 
   .sr-only {
     position: absolute;
@@ -316,6 +367,7 @@
     overflow: hidden;
     padding: 3.5rem 4rem 0;
     position: relative;
+    isolation: isolate; /* keep ambient glow contained */
   }
 
   .image-wrap {
@@ -325,6 +377,7 @@
     align-items: center;
     justify-content: center;
     position: relative;
+    z-index: 1;
   }
 
   .main-img {
@@ -333,6 +386,13 @@
     object-fit: contain;
     border-radius: 4px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    transition: border-radius 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  /* Curved: gentle convex warp via border-radius + subtle 3-D tilt */
+  .main-img.curved {
+    border-radius: 12px / 8px;
+    box-shadow: 0 12px 60px rgba(0,0,0,0.7);
   }
 
   .main-img--top {
@@ -344,6 +404,95 @@
     max-width: 100%;
     max-height: calc(100vh - 10rem);
     object-fit: contain;
+  }
+
+  /* Ambient glow: blurred, scaled-up copy of the image radiating colour behind it */
+  .ambient-glow {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: blur(80px) saturate(1.4) brightness(0.55);
+    opacity: 0.75;
+    pointer-events: none;
+    transform: scale(1.15);
+    z-index: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .image-wrap { position: relative; z-index: 1; }
+
+  /* Controls panel — floats below the top-right buttons */
+  .controls-panel {
+    position: absolute;
+    top: 3.5rem;
+    right: 1rem;
+    z-index: 20;
+    background: rgba(15, 15, 20, 0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .controls-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    cursor: pointer;
+  }
+
+  .control-label {
+    font-size: 0.8rem;
+    color: #d1d5db;
+  }
+
+  /* Toggle switch */
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 999px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s;
+    padding: 0;
+  }
+  .toggle.on {
+    background: rgba(99,102,241,0.7);
+    border-color: rgba(99,102,241,0.8);
+  }
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+    display: block;
+  }
+  .toggle.on .toggle-knob {
+    transform: translateX(16px);
   }
 
   /* Shimmer border — pulses around image-wrap while HD fetch is in progress */
