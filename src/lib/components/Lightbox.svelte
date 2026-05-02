@@ -73,8 +73,9 @@
     if (!photo.displayUrl && photo.displayProgress === null) {
       onfetchdisplay?.(id);
     }
-    // If there's no image to transition through (no URL available yet),
-    // update shownPhoto immediately so the info bar doesn't stay stale forever.
+    // If there's no image at all yet (not even a thumbnail), update shownPhoto
+    // immediately — otherwise the bar would stay frozen on the previous photo forever.
+    // When a thumbnail exists but no display yet, we wait for the HD image (shimmer done).
     if (!photo.displayUrl && !photo.thumbnailUrl) {
       shownPhoto = photo;
     }
@@ -260,7 +261,12 @@
             class="main-img main-img--top"
             class:curved={curvedCorners}
             class:shadowed={shadowEnabled && ambientEnabled}
-            onload={() => { shownUrl = targetUrl; shownPhoto = photo; }}
+            onload={() => {
+              shownUrl = targetUrl;
+              // Only reveal the new photo's details once the display-quality image
+              // has landed (i.e. when the shimmer is done). Thumbnail swaps don't count.
+              if (targetUrl === photo?.displayUrl) shownPhoto = photo;
+            }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
         {/if}
