@@ -445,7 +445,7 @@
 
   /* Curved corners — only affects border-radius, no shadow change */
   .main-img.curved {
-    border-radius: 32px / 22px;
+    border-radius: 26px / 18px;
   }
 
   .main-img--top {
@@ -581,7 +581,7 @@
   }
 
   .shimmer-border.curved {
-    border-radius: 35px / 25px; /* matches 32px/22px image corner + 3px inset offset */
+    border-radius: 29px / 21px; /* matches 26px/18px image corner + 3px inset offset */
   }
 
   @keyframes shimmer-sweep {
