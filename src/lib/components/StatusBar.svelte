@@ -165,13 +165,10 @@
       {/if}
     </button>
     <button class="icon-btn" onclick={onsettings} title="Camera connection" aria-label="Camera connection">
-      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Left link -->
-        <rect x="1" y="5.5" width="5.5" height="5" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
-        <!-- Right link -->
-        <rect x="9.5" y="5.5" width="5.5" height="5" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
-        <!-- Connecting bar -->
-        <line x1="6.5" y1="8" x2="9.5" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Lucide "link" icon (16px grid) -->
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
   </div>
