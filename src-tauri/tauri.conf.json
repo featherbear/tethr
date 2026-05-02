@@ -25,7 +25,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../build": "build"
+      "../build": "build",
+      "../build/node_modules": "build/node_modules"
     }
   }
 }
