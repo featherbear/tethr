@@ -532,9 +532,9 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(129, 140, 248, 0.0) 20%,
-      rgba(129, 140, 248, 0.6) 50%,
-      rgba(129, 140, 248, 0.0) 80%,
+      rgba(var(--accent-rgb), 0.0) 20%,
+      rgba(var(--accent-rgb), 0.6) 50%,
+      rgba(var(--accent-rgb), 0.0) 80%,
       transparent 100%
     );
     background-size: 200% 100%;
