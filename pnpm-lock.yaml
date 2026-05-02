@@ -14,6 +14,12 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2
         version: 2.5.3
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+      pino-abstract-transport:
+        specifier: ^3.0.0
+        version: 3.0.0
       undici:
         specifier: ^8.1.0
         version: 8.1.0
@@ -39,6 +45,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
       svelte:
         specifier: ^5.0.0
         version: 5.55.5
@@ -225,6 +234,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz}
+
+  '@pinojs/redact@0.4.0':
+    resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/@pinojs/redact/-/redact-0.4.0.tgz}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==, tarball: https://packages.atlassian.com/api/npm/npm-remote/@polka/url/-/url-1.0.0-next.29.tgz}
@@ -566,6 +578,10 @@ packages:
     resolution: {integrity: sha512-Z/ZeOgVl7bcSYZ/u/rh0fOpvEpq//LZmdbkXyc7syVzjPAhfOa9ebsdTSjEBDU4vs5nC98Kfduj1uFo0qyET3g==, tarball: https://packages.atlassian.com/api/npm/npm-remote/aria-query/-/aria-query-5.3.1.tgz}
     engines: {node: '>= 0.4'}
 
+  atomic-sleep@1.0.0:
+    resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/atomic-sleep/-/atomic-sleep-1.0.0.tgz}
+    engines: {node: '>=8.0.0'}
+
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/axobject-query/-/axobject-query-4.1.0.tgz}
     engines: {node: '>= 0.4'}
@@ -593,6 +609,9 @@ packages:
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/color-name/-/color-name-1.1.4.tgz}
 
+  colorette@2.0.20:
+    resolution: {integrity: sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w==, tarball: https://packages.atlassian.com/api/npm/npm-remote/colorette/-/colorette-2.0.20.tgz}
+
   commondir@1.0.1:
     resolution: {integrity: sha512-W9pAhw0ja1Edb5GVdIF1mjZw/ASI0AlShXM83UUGe2DVr5TdAPEA1OA8m/g8zWp9x6On7gqufY+FatDbC3MDQg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/commondir/-/commondir-1.0.1.tgz}
 
@@ -604,6 +623,9 @@ packages:
   cookie@0.6.0:
     resolution: {integrity: sha512-U71cyTamuh1CRNCfpGY6to28lxvNwPG4Guz/EVjgf3Jmzv0vlDp1atT9eS5dDjMYHucpHbWns6Lwf3BKz6svdw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/cookie/-/cookie-0.6.0.tgz}
     engines: {node: '>= 0.6'}
+
+  dateformat@4.6.3:
+    resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/dateformat/-/dateformat-4.6.3.tgz}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/debug/-/debug-4.4.3.tgz}
@@ -623,6 +645,9 @@ packages:
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==, tarball: https://packages.atlassian.com/api/npm/npm-remote/emoji-regex/-/emoji-regex-8.0.0.tgz}
+
+  end-of-stream@1.4.5:
+    resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/end-of-stream/-/end-of-stream-1.4.5.tgz}
 
   es-errors@1.3.0:
     resolution: {integrity: sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/es-errors/-/es-errors-1.3.0.tgz}
@@ -650,6 +675,12 @@ packages:
 
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==, tarball: https://packages.atlassian.com/api/npm/npm-remote/estree-walker/-/estree-walker-2.0.2.tgz}
+
+  fast-copy@4.0.3:
+    resolution: {integrity: sha512-58apWr0GUiDFM8+3afrO6eYwJBn9ZAhDOzG3L+/9llab/haCARS2UIfffmOurYLwbgDRs8n0rfr6qAAPEAuAQw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/fast-copy/-/fast-copy-4.0.3.tgz}
+
+  fast-safe-stringify@2.1.1:
+    resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/fast-safe-stringify/-/fast-safe-stringify-2.1.1.tgz}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/fdir/-/fdir-6.5.0.tgz}
@@ -680,6 +711,9 @@ packages:
     resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/hasown/-/hasown-2.0.3.tgz}
     engines: {node: '>= 0.4'}
 
+  help-me@5.0.0:
+    resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/help-me/-/help-me-5.0.0.tgz}
+
   is-core-module@2.16.1:
     resolution: {integrity: sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==, tarball: https://packages.atlassian.com/api/npm/npm-remote/is-core-module/-/is-core-module-2.16.1.tgz}
     engines: {node: '>= 0.4'}
@@ -697,6 +731,10 @@ packages:
   is-reference@3.0.3:
     resolution: {integrity: sha512-ixkJoqQvAP88E6wLydLGGqCJsrFUnqoH6HnaczB8XmDH1oaWU+xxdptvikTgaEhtZ53Ky6YXiBuUI2WXLMCwjw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/is-reference/-/is-reference-3.0.3.tgz}
 
+  joycon@3.1.1:
+    resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/joycon/-/joycon-3.1.1.tgz}
+    engines: {node: '>=10'}
+
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/kleur/-/kleur-4.1.5.tgz}
     engines: {node: '>=6'}
@@ -706,6 +744,9 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/magic-string/-/magic-string-0.30.21.tgz}
+
+  minimist@1.2.8:
+    resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/minimist/-/minimist-1.2.8.tgz}
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/mri/-/mri-1.2.0.tgz}
@@ -723,6 +764,13 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  on-exit-leak-free@2.1.2:
+    resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/on-exit-leak-free/-/on-exit-leak-free-2.1.2.tgz}
+    engines: {node: '>=14.0.0'}
+
+  once@1.4.0:
+    resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==, tarball: https://packages.atlassian.com/api/npm/npm-remote/once/-/once-1.4.0.tgz}
+
   path-parse@1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/path-parse/-/path-parse-1.0.7.tgz}
 
@@ -733,13 +781,40 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==, tarball: https://packages.atlassian.com/api/npm/npm-remote/picomatch/-/picomatch-4.0.4.tgz}
     engines: {node: '>=12'}
 
+  pino-abstract-transport@3.0.0:
+    resolution: {integrity: sha512-wlfUczU+n7Hy/Ha5j9a/gZNy7We5+cXp8YL+X+PG8S0KXxw7n/JXA3c46Y0zQznIJ83URJiwy7Lh56WLokNuxg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/pino-abstract-transport/-/pino-abstract-transport-3.0.0.tgz}
+
+  pino-pretty@13.1.3:
+    resolution: {integrity: sha512-ttXRkkOz6WWC95KeY9+xxWL6AtImwbyMHrL1mSwqwW9u+vLp/WIElvHvCSDg0xO/Dzrggz1zv3rN5ovTRVowKg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/pino-pretty/-/pino-pretty-13.1.3.tgz}
+    hasBin: true
+
+  pino-std-serializers@7.1.0:
+    resolution: {integrity: sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/pino-std-serializers/-/pino-std-serializers-7.1.0.tgz}
+
+  pino@10.3.1:
+    resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/pino/-/pino-10.3.1.tgz}
+    hasBin: true
+
   postcss@8.5.12:
     resolution: {integrity: sha512-W62t/Se6rA0Az3DfCL0AqJwXuKwBeYg6nOaIgzP+xZ7N5BFCI7DYi1qs6ygUYT6rvfi6t9k65UMLJC+PHZpDAA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/postcss/-/postcss-8.5.12.tgz}
     engines: {node: ^10 || ^12 || >=14}
 
+  process-warning@5.0.0:
+    resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/process-warning/-/process-warning-5.0.0.tgz}
+
+  pump@3.0.4:
+    resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/pump/-/pump-3.0.4.tgz}
+
+  quick-format-unescaped@4.0.4:
+    resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/quick-format-unescaped/-/quick-format-unescaped-4.0.4.tgz}
+
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/readdirp/-/readdirp-4.1.2.tgz}
     engines: {node: '>= 14.18.0'}
+
+  real-require@0.2.0:
+    resolution: {integrity: sha512-57frrGM/OCTLqLOAh0mhVA9VBMHd+9U7Zb2THMGdBUoZVOtGbJzjxsYGDJ3A9AYYCP4hn6y1TVbaOfzWtm5GFg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/real-require/-/real-require-0.2.0.tgz}
+    engines: {node: '>= 12.13.0'}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==, tarball: https://packages.atlassian.com/api/npm/npm-remote/require-directory/-/require-directory-2.1.1.tgz}
@@ -762,6 +837,13 @@ packages:
     resolution: {integrity: sha512-xal3CZX1Xlo/k4ApwCFrHVACi9fBqJ7V+mwhBsuf/1IOKbBy098Fex+Wa/5QMubw09pSZ/u8EY8PWgevJsXp1A==, tarball: https://packages.atlassian.com/api/npm/npm-remote/sade/-/sade-1.8.1.tgz}
     engines: {node: '>=6'}
 
+  safe-stable-stringify@2.5.0:
+    resolution: {integrity: sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/safe-stable-stringify/-/safe-stable-stringify-2.5.0.tgz}
+    engines: {node: '>=10'}
+
+  secure-json-parse@4.1.0:
+    resolution: {integrity: sha512-l4KnYfEyqYJxDwlNVyRfO2E4NTHfMKAWdUuA8J0yve2Dz/E/PdBepY03RvyJpssIpRFwJoCD55wA+mEDs6ByWA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/secure-json-parse/-/secure-json-parse-4.1.0.tgz}
+
   set-cookie-parser@3.1.0:
     resolution: {integrity: sha512-kjnC1DXBHcxaOaOXBHBeRtltsDG2nUiUni+jP92M9gYdW12rsmx92UsfpH7o5tDRs7I1ZZPSQJQGv3UaRfCiuw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/set-cookie-parser/-/set-cookie-parser-3.1.0.tgz}
 
@@ -773,9 +855,16 @@ packages:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==, tarball: https://packages.atlassian.com/api/npm/npm-remote/sirv/-/sirv-3.0.2.tgz}
     engines: {node: '>=18'}
 
+  sonic-boom@4.2.1:
+    resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==, tarball: https://packages.atlassian.com/api/npm/npm-remote/sonic-boom/-/sonic-boom-4.2.1.tgz}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/source-map-js/-/source-map-js-1.2.1.tgz}
     engines: {node: '>=0.10.0'}
+
+  split2@4.2.0:
+    resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/split2/-/split2-4.2.0.tgz}
+    engines: {node: '>= 10.x'}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==, tarball: https://packages.atlassian.com/api/npm/npm-remote/string-width/-/string-width-4.2.3.tgz}
@@ -784,6 +873,10 @@ packages:
   strip-ansi@6.0.1:
     resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==, tarball: https://packages.atlassian.com/api/npm/npm-remote/strip-ansi/-/strip-ansi-6.0.1.tgz}
     engines: {node: '>=8'}
+
+  strip-json-comments@5.0.3:
+    resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/strip-json-comments/-/strip-json-comments-5.0.3.tgz}
+    engines: {node: '>=14.16'}
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/supports-color/-/supports-color-7.2.0.tgz}
@@ -808,6 +901,10 @@ packages:
   svelte@5.55.5:
     resolution: {integrity: sha512-2uCs/LZ9us+AktdzYJM8OcxQ8qnPS1kpaO7syGT/MgO+6Qr1Ybl+TqPq+97u7PHqmmMlye5ZkoyXONy5mjjAbw==, tarball: https://packages.atlassian.com/api/npm/npm-remote/svelte/-/svelte-5.55.5.tgz}
     engines: {node: '>=18'}
+
+  thread-stream@4.0.0:
+    resolution: {integrity: sha512-4iMVL6HAINXWf1ZKZjIPcz5wYaOdPhtO8ATvZ+Xqp3BTdaqtAwQkNmKORqcIo5YkQqGXq5cwfswDwMqqQNrpJA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/thread-stream/-/thread-stream-4.0.0.tgz}
+    engines: {node: '>=20'}
 
   tinyglobby@0.2.16:
     resolution: {integrity: sha512-pn99VhoACYR8nFHhxqix+uvsbXineAasWm5ojXoN8xEwK5Kd3/TrhNn1wByuD52UxWRLy8pu+kRMniEi6Eq9Zg==, tarball: https://packages.atlassian.com/api/npm/npm-remote/tinyglobby/-/tinyglobby-0.2.16.tgz}
@@ -887,6 +984,9 @@ packages:
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==, tarball: https://packages.atlassian.com/api/npm/npm-remote/wrap-ansi/-/wrap-ansi-7.0.0.tgz}
     engines: {node: '>=10'}
+
+  wrappy@1.0.2:
+    resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/wrappy/-/wrappy-1.0.2.tgz}
 
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==, tarball: https://packages.atlassian.com/api/npm/npm-remote/y18n/-/y18n-5.0.8.tgz}
@@ -1001,6 +1101,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@pinojs/redact@0.4.0': {}
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -1250,6 +1352,8 @@ snapshots:
 
   aria-query@5.3.1: {}
 
+  atomic-sleep@1.0.0: {}
+
   axobject-query@4.1.0: {}
 
   chalk@4.1.2:
@@ -1275,6 +1379,8 @@ snapshots:
 
   color-name@1.1.4: {}
 
+  colorette@2.0.20: {}
+
   commondir@1.0.1: {}
 
   concurrently@9.2.1:
@@ -1288,6 +1394,8 @@ snapshots:
 
   cookie@0.6.0: {}
 
+  dateformat@4.6.3: {}
+
   debug@4.4.3:
     dependencies:
       ms: 2.1.3
@@ -1297,6 +1405,10 @@ snapshots:
   devalue@5.7.1: {}
 
   emoji-regex@8.0.0: {}
+
+  end-of-stream@1.4.5:
+    dependencies:
+      once: 1.4.0
 
   es-errors@1.3.0: {}
 
@@ -1339,6 +1451,10 @@ snapshots:
 
   estree-walker@2.0.2: {}
 
+  fast-copy@4.0.3: {}
+
+  fast-safe-stringify@2.1.1: {}
+
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
@@ -1356,6 +1472,8 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  help-me@5.0.0: {}
+
   is-core-module@2.16.1:
     dependencies:
       hasown: 2.0.3
@@ -1372,6 +1490,8 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.8
 
+  joycon@3.1.1: {}
+
   kleur@4.1.5: {}
 
   locate-character@3.0.0: {}
@@ -1379,6 +1499,8 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  minimist@1.2.8: {}
 
   mri@1.2.0: {}
 
@@ -1388,11 +1510,53 @@ snapshots:
 
   nanoid@3.3.11: {}
 
+  on-exit-leak-free@2.1.2: {}
+
+  once@1.4.0:
+    dependencies:
+      wrappy: 1.0.2
+
   path-parse@1.0.7: {}
 
   picocolors@1.1.1: {}
 
   picomatch@4.0.4: {}
+
+  pino-abstract-transport@3.0.0:
+    dependencies:
+      split2: 4.2.0
+
+  pino-pretty@13.1.3:
+    dependencies:
+      colorette: 2.0.20
+      dateformat: 4.6.3
+      fast-copy: 4.0.3
+      fast-safe-stringify: 2.1.1
+      help-me: 5.0.0
+      joycon: 3.1.1
+      minimist: 1.2.8
+      on-exit-leak-free: 2.1.2
+      pino-abstract-transport: 3.0.0
+      pump: 3.0.4
+      secure-json-parse: 4.1.0
+      sonic-boom: 4.2.1
+      strip-json-comments: 5.0.3
+
+  pino-std-serializers@7.1.0: {}
+
+  pino@10.3.1:
+    dependencies:
+      '@pinojs/redact': 0.4.0
+      atomic-sleep: 1.0.0
+      on-exit-leak-free: 2.1.2
+      pino-abstract-transport: 3.0.0
+      pino-std-serializers: 7.1.0
+      process-warning: 5.0.0
+      quick-format-unescaped: 4.0.4
+      real-require: 0.2.0
+      safe-stable-stringify: 2.5.0
+      sonic-boom: 4.2.1
+      thread-stream: 4.0.0
 
   postcss@8.5.12:
     dependencies:
@@ -1400,7 +1564,18 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  process-warning@5.0.0: {}
+
+  pump@3.0.4:
+    dependencies:
+      end-of-stream: 1.4.5
+      once: 1.4.0
+
+  quick-format-unescaped@4.0.4: {}
+
   readdirp@4.1.2: {}
+
+  real-require@0.2.0: {}
 
   require-directory@2.1.1: {}
 
@@ -1450,6 +1625,10 @@ snapshots:
     dependencies:
       mri: 1.2.0
 
+  safe-stable-stringify@2.5.0: {}
+
+  secure-json-parse@4.1.0: {}
+
   set-cookie-parser@3.1.0: {}
 
   shell-quote@1.8.3: {}
@@ -1460,7 +1639,13 @@ snapshots:
       mrmime: 2.0.1
       totalist: 3.0.1
 
+  sonic-boom@4.2.1:
+    dependencies:
+      atomic-sleep: 1.0.0
+
   source-map-js@1.2.1: {}
+
+  split2@4.2.0: {}
 
   string-width@4.2.3:
     dependencies:
@@ -1471,6 +1656,8 @@ snapshots:
   strip-ansi@6.0.1:
     dependencies:
       ansi-regex: 5.0.1
+
+  strip-json-comments@5.0.3: {}
 
   supports-color@7.2.0:
     dependencies:
@@ -1515,6 +1702,10 @@ snapshots:
     transitivePeerDependencies:
       - '@typescript-eslint/types'
 
+  thread-stream@4.0.0:
+    dependencies:
+      real-require: 0.2.0
+
   tinyglobby@0.2.16:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.4)
@@ -1553,6 +1744,8 @@ snapshots:
       ansi-styles: 4.3.0
       string-width: 4.2.3
       strip-ansi: 6.0.1
+
+  wrappy@1.0.2: {}
 
   y18n@5.0.8: {}
 
