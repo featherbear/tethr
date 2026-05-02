@@ -409,15 +409,15 @@
     --accent-border: #334155; /* badge borders (slate-700) */
   }
 
-  /* Light mode: switch to a gold/amber accent palette */
+  /* Light mode: switch to a yellow/gold accent palette */
   @media (prefers-color-scheme: light) {
     :global(:root) {
-      --accent:        #d97706; /* amber-600 */
-      --accent-dark:   #b45309; /* amber-700 */
-      --accent-light:  #f59e0b; /* amber-400 */
-      --accent-pale:   #fcd34d; /* amber-300 */
-      --accent-rgb:    217, 119, 6;
-      --accent-border: #92400e; /* amber-800 */
+      --accent:        #ca8a04; /* yellow-600 */
+      --accent-dark:   #a16207; /* yellow-700 */
+      --accent-light:  #eab308; /* yellow-500 */
+      --accent-pale:   #fde047; /* yellow-300 */
+      --accent-rgb:    202, 138, 4;
+      --accent-border: #713f12; /* yellow-900 */
     }
   }
 
