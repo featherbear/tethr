@@ -68,6 +68,8 @@ const jpegResponse = () => new Response(dummyJpeg, { headers: { 'Content-Type': 
 // ---------------------------------------------------------------------------
 // Shooting settings (mock values)
 // ---------------------------------------------------------------------------
+// Shooting settings in CCAPI format: { key: { value, ability[] } }
+// The app reads all[key]?.value — flat strings won't be parsed
 const shootingSettings = {
   av: { value: 'f2.8' },
   tv: { value: '1/125' },
@@ -102,7 +104,19 @@ Bun.serve({
       });
     }
 
-    // Device info
+    // Device info — canonical path used by app for probe + device info
+    if (path === '/ccapi/ver100/deviceinformation') {
+      return Response.json({
+        productname: 'Canon EOS R6 Mark II',
+        manufacturer: 'Canon Inc.',
+        modeldescription: 'Canon EOS R6m2',
+        serialnumber: '000000000000',
+        firmwareversion: '1.6.0',
+        macaddress: 'aa:bb:cc:dd:ee:ff',
+      });
+    }
+
+    // Legacy device status path (kept for compatibility)
     if (path === '/ccapi/ver100/devicestatus/deviceinfo') {
       return Response.json({
         manufacturer: 'Canon Inc.',
@@ -119,6 +133,13 @@ Bun.serve({
         name: 'battery',
         kind: 'battery',
         value: [{ kind: 'battery', name: 'LP-E6NH', level: 'high', quality: 'normal' }],
+      });
+    }
+
+    // Battery list (ver110)
+    if (path === '/ccapi/ver110/devicestatus/batterylist') {
+      return Response.json({
+        batterylist: [{ kind: 'battery', name: 'LP-E6NH', level: 'high', quality: 'normal' }],
       });
     }
 
@@ -168,10 +189,9 @@ Bun.serve({
     }
 
     // Shooting settings — full bundle
+    // Returns { key: { value, ability[] } } — app reads all[key]?.value
     if (path === '/ccapi/ver100/shooting/settings') {
-      const flat: Record<string, string | number> = {};
-      for (const [k, v] of Object.entries(shootingSettings)) flat[k] = v.value;
-      return Response.json(flat);
+      return Response.json(shootingSettings);
     }
 
     // Shooting settings — individual
