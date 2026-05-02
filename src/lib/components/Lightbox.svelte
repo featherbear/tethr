@@ -19,8 +19,9 @@
 
   // Display controls
   let showControls = $state(false);
-  let curveEnabled = $state(true);
+  let curvedCorners = $state(true);
   let ambientEnabled = $state(true);
+  let shadowEnabled = $state(true);
 
   // Track viewed photo by ID (stable across array prepends)
   let currentId = $state(untrack(() => photos[initialIndex]?.id ?? null));
@@ -187,12 +188,22 @@
     <div class="controls-panel" transition:fade={{ duration: 120 }} onclick={(e) => e.stopPropagation()}>
       <div class="controls-title">Display controls</div>
       <label class="control-row">
-        <span class="control-label">Curved image</span>
+        <span class="control-label">Curved corners</span>
         <button
           class="toggle"
-          class:on={curveEnabled}
-          onclick={() => curveEnabled = !curveEnabled}
-          aria-pressed={curveEnabled}
+          class:on={curvedCorners}
+          onclick={() => curvedCorners = !curvedCorners}
+          aria-pressed={curvedCorners}
+          role="switch"
+        ><span class="toggle-knob"></span></button>
+      </label>
+      <label class="control-row">
+        <span class="control-label">Shadow</span>
+        <button
+          class="toggle"
+          class:on={shadowEnabled}
+          onclick={() => shadowEnabled = !shadowEnabled}
+          aria-pressed={shadowEnabled}
           role="switch"
         ><span class="toggle-knob"></span></button>
       </label>
@@ -221,7 +232,7 @@
       <div class="image-wrap">
         <!-- Layer 1 (bg): last confirmed good image — crossfade source -->
         {#if shownUrl}
-          <img src={shownUrl} alt={photo.filename} class="main-img" class:curved={curveEnabled} />
+          <img src={shownUrl} alt={photo.filename} class="main-img" class:curved={curvedCorners} class:shadowed={shadowEnabled} />
         {:else}
           <div class="placeholder">
             <span class="placeholder-icon">📷</span>
@@ -235,7 +246,8 @@
             src={targetUrl}
             alt={photo.filename}
             class="main-img main-img--top"
-            class:curved={curveEnabled}
+            class:curved={curvedCorners}
+            class:shadowed={shadowEnabled}
             onload={() => { shownUrl = targetUrl; }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
@@ -385,14 +397,17 @@
     max-height: calc(100vh - 10rem);
     object-fit: contain;
     border-radius: 4px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
     transition: border-radius 0.3s ease, box-shadow 0.3s ease;
   }
 
-  /* Curved: gentle convex warp via border-radius + subtle 3-D tilt */
+  /* Shadow — independent of corner rounding */
+  .main-img.shadowed {
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  /* Curved corners — only affects border-radius, no shadow change */
   .main-img.curved {
     border-radius: 12px / 8px;
-    box-shadow: 0 12px 60px rgba(0,0,0,0.7);
   }
 
   .main-img--top {
