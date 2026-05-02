@@ -110,7 +110,7 @@ Bun.serve({
         productname: 'Canon EOS Mock Device',
         manufacturer: 'Canon Inc.',
         modeldescription: 'Canon EOS Mock Device',
-        serialnumber: '012345678',
+        serialnumber: '000123456789',
         firmwareversion: '1.0.0',
         macaddress: 'aa:bb:cc:dd:ee:ff',
       });
@@ -121,7 +121,7 @@ Bun.serve({
       return Response.json({
         manufacturer: 'Canon Inc.',
         modeldescription: 'Canon EOS Mock Device',
-        serialnumber: '012345678',
+        serialnumber: '000123456789',
         firmwareversion: '1.0.0',
         macaddress: 'aa:bb:cc:dd:ee:ff',
       });
