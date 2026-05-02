@@ -57,6 +57,11 @@
     untrack(() => { const p = photos[initialIndex]; return p?.displayUrl ?? p?.thumbnailUrl ?? null; })
   );
 
+  // shownPhoto: the photo whose details are shown in the info bar.
+  // Updated only when shownUrl changes (i.e. new image has landed) so the
+  // filename/EXIF text never races ahead of the visible image.
+  let shownPhoto = $state<typeof photo>(untrack(() => photos[initialIndex] ?? null));
+
   // Track processed photo id to detect photo changes
   let processedId = $state<string | null>(untrack(() => photos[initialIndex]?.id ?? null));
 
@@ -67,6 +72,11 @@
     if (id !== processedId) processedId = id;
     if (!photo.displayUrl && photo.displayProgress === null) {
       onfetchdisplay?.(id);
+    }
+    // If there's no image to transition through (no URL available yet),
+    // update shownPhoto immediately so the info bar doesn't stay stale forever.
+    if (!photo.displayUrl && !photo.thumbnailUrl) {
+      shownPhoto = photo;
     }
   });
 
@@ -84,8 +94,8 @@
   );
 
   const timeLabel = $derived(
-    photo
-      ? photo.capturedAt.toLocaleString([], {
+    shownPhoto
+      ? shownPhoto.capturedAt.toLocaleString([], {
           month: 'short', day: 'numeric',
           hour: '2-digit', minute: '2-digit', second: '2-digit',
         })
@@ -93,11 +103,11 @@
   );
 
   const variantLabel = $derived(
-    photo?.variants.map(v => v.split('.').pop()?.toUpperCase()).join(' + ') ?? ''
+    shownPhoto?.variants.map(v => v.split('.').pop()?.toUpperCase()).join(' + ') ?? ''
   );
 
   // Show photo settings or fall back to live settings if photo has none
-  const displaySettings = $derived(photo?.settings ?? liveSettings);
+  const displaySettings = $derived(shownPhoto?.settings ?? liveSettings);
 
   const METERING: Record<string, string> = {
     evaluative:              '⬡ Evaluative',
@@ -250,7 +260,7 @@
             class="main-img main-img--top"
             class:curved={curvedCorners}
             class:shadowed={shadowEnabled && ambientEnabled}
-            onload={() => { shownUrl = targetUrl; }}
+            onload={() => { shownUrl = targetUrl; shownPhoto = photo; }}
             onerror={() => { /* leave shownUrl — keep previous visible */ }}
           />
         {/if}
@@ -274,7 +284,7 @@
 
       <!-- Info -->
       <div class="info">
-        <span class="filename">{photo.filename}</span>
+        <span class="filename">{shownPhoto?.filename ?? photo.filename}</span>
         {#if variantLabel}
           <span class="variant-badge">{variantLabel}</span>
         {/if}
