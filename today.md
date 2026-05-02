@@ -57,6 +57,22 @@
 
 ---
 
+## Last Updated
+
+2026-05-03 — Logging + connection manager rewrite complete.
+
+## What Was Done (this session)
+
+- Added pino.js logging throughout: `src/lib/server/logger.ts` (server), `src/lib/logger.ts` (browser)
+- Three log modes via `LOG_MODE` env var: `pretty` (default dev), `waterfall` (multi-column), `json` (prod)
+- Custom waterfall transport: `src/lib/server/transports/waterfall.mjs` — per-module columns, level colours
+- Rewrote `monitor.ts`: explicit 3-phase state machine (VERIFY → CONNECT → LIVE), separated from camera.ts
+- Rewrote `camera.ts`: clean queue, `cameraFetch()` (queued) vs `cameraFetchDirect()` (stream/probes)
+- Added `CCAPI_EVENT_MODE` env var: `monitoring` (default, binary stream) or `polling` (re-poll loop, plain JSON)
+- Monitor starts lazily on first SSE client (`/api/events`), not on boot — avoids queue contention
+- Fixed default camera IP to `192.168.1.26`
+- Fixed `stopExistingSession` to probe `deviceinformation` not the monitoring path itself
+
 ## Next Steps
 
 1. **Test with mock** — run `pnpm dev:mock` in `tethr/` and open http://localhost:1420; shots should auto-fire every 5s

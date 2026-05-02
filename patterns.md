@@ -141,6 +141,30 @@
 - **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
 - **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
 
+### Monitor state machine: verify → connect → live phases must be explicit
+- **Symptom:** App cycles live→connecting→live repeatedly; or stays stuck in connecting; or never reaches live consistently
+- **Root cause:** A flat `while(true)` reconnect loop that calls `setStatus('connecting')` at the top of every iteration blurs the difference between "camera unreachable" and "stream dropped". One status transition triggers another before any I/O completes.
+- **Fix:** Explicit local phase variable (`verify | connect | live`) inside the loop. `setStatus('connecting')` only fires on CONNECT phase entry. Clean stream close (done:true) → CONNECT (skip probe, camera known reachable). Error during read → VERIFY (reachability unknown). 503 → DELETE + fixed delay → retry CONNECT.
+- **Prevention:** Any reconnect loop managing a persistent connection needs at least two distinct phases: "is the server reachable?" and "open the stream". Conflating them causes spurious status transitions and split-brain between the probe and the stream.
+
+### Monitoring stream closed gracefully (done: true) causes live→connecting flicker
+- **Symptom:** UI briefly shows `live` then immediately `connecting` with no `reconnecting` in between; repeats every few seconds
+- **Root cause:** When the camera closes the monitoring stream gracefully, `reader.read()` resolves `{ done: true }`. The inner read loop exits normally (no exception), so the `catch` block is skipped — no backoff is applied, and the outer `while` loop immediately calls `setStatus('connecting')` again.
+- **Fix:** After `reader.releaseLock()`, check `!signal.aborted` and apply a fixed short delay (1500ms) + `setStatus('reconnecting')` before looping. Use a **fixed** delay, not the exponential error backoff — clean closes are normal camera behaviour and shouldn't penalise reconnect speed over time.
+- **Prevention:** Always handle the normal exit path of a streaming loop separately from the error path. `catch` only runs on throws; a graceful `done: true` is a different code path that needs its own backoff.
+
+### pino-abstract-transport parse:'lines' gives raw strings, not parsed objects
+- **Symptom:** Transport receives records where `typeof record === 'string'` and keys are `'0','1','2'...` (character indices)
+- **Root cause:** `build(..., { parse: 'lines' })` from `pino-abstract-transport` passes the raw JSON line string to the async iterator, not a parsed object
+- **Fix:** In the transport's `for await` loop, always check `typeof line === 'string'` and `JSON.parse(line)` before using as a record object
+- **Prevention:** Never assume `pino-abstract-transport` with `parse:'lines'` gives you a parsed object — always parse manually
+
+### Pino logging: server uses pino-pretty in dev, JSON in prod; browser uses pino browser build
+- **Pattern:** `src/lib/server/logger.ts` exports a shared pino logger + `childLogger(module)` for per-file child loggers. In dev (NODE_ENV !== 'production'), pino-pretty is wired as a transport for human-readable output. In prod, plain JSON lines go to stdout.
+- **Frontend:** `src/lib/logger.ts` exports a pino browser logger (`asObject: false`) — logs go to `console.*`. Level is `debug` in dev, `warn` in prod to suppress noise in the bundled app.
+- **Log levels used:** `debug` for per-request/per-frame noise; `info` for lifecycle events (connect, shot, thumbnail loaded); `warn` for recoverable errors and retries; `error` for crashes.
+- **Prevention:** Never import `$lib/server/logger` from a `.svelte` file or client-only module — it pulls in Node-only APIs. Use `$lib/logger` (browser) in Svelte components.
+
 ### Tauri svelte-ts scaffold defaults to adapter-static + SPA mode
 - **Symptom:** Server routes (`+server.ts`) don't work; SSR is disabled
 - **Root cause:** `pnpm create tauri-app` uses `adapter-static` with `ssr = false` in `+layout.ts` by default (Tauri docs recommend SPA mode for static builds)
