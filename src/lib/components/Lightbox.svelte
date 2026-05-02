@@ -147,9 +147,12 @@
   function navigate(newIndex: number) {
     const newPhoto = photos[newIndex];
     if (!newPhoto) return;
-    // $effect.pre captures renderedUrl = currentBestUrl before photo changes
     currentId = newPhoto.id;
     onfetchdisplay?.(newPhoto.id);
+    // On manual navigation, update details immediately — the user explicitly chose
+    // this photo. Shimmer-only gating is only for automatic latest-mode updates.
+    shownPhoto = newPhoto;
+    if (newPhoto.displayUrl) shownDisplayUrl = newPhoto.displayUrl;
   }
 
   function prev() {
