@@ -17,14 +17,20 @@ export const GET: RequestHandler = async () => {
   let cameraInfo = null;
   if (status === 'live') {
     try {
-      const [deviceRes, batteryRes, lensRes] = await Promise.all([
-        cameraFetch('/ccapi/ver100/deviceinformation',    { signal: AbortSignal.timeout(5_000) }),
-        cameraFetch('/ccapi/ver100/devicestatus/battery', { signal: AbortSignal.timeout(5_000) }),
-        cameraFetch('/ccapi/ver100/devicestatus/lens',    { signal: AbortSignal.timeout(5_000) }),
+      const [deviceRes, batteryListRes, batteryRes, lensRes] = await Promise.all([
+        cameraFetch('/ccapi/ver100/deviceinformation',          { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver110/devicestatus/batterylist',   { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver100/devicestatus/battery',       { signal: AbortSignal.timeout(5_000) }),
+        cameraFetch('/ccapi/ver100/devicestatus/lens',          { signal: AbortSignal.timeout(5_000) }),
       ]);
-      if (deviceRes.ok && batteryRes.ok) {
-        const device  = await deviceRes.json();
-        const battery = await batteryRes.json();
+      if (deviceRes.ok && (batteryListRes.ok || batteryRes.ok)) {
+        const device = await deviceRes.json();
+        // Prefer batterylist (ver110) — returns numeric % level. Fall back to ver100 named level.
+        type BatteryEntry = { kind: string; name: string; quality: string; level: string };
+        const batteryListEntry: BatteryEntry | null = batteryListRes.ok
+          ? ((await batteryListRes.json() as { batterylist?: BatteryEntry[] }).batterylist?.[0] ?? null)
+          : null;
+        const battery: BatteryEntry = batteryListEntry ?? (batteryRes.ok ? await batteryRes.json() : { kind: '', name: '', quality: 'normal', level: 'unknown' });
         const lens = lensRes.ok ? await lensRes.json() : null;
         cameraInfo = {
           productname:     device.productname     ?? 'Unknown Camera',
