@@ -1,9 +1,17 @@
 #[cfg(not(debug_assertions))]
 use std::net::TcpListener;
 #[cfg(not(debug_assertions))]
+use std::process::Child;
+#[cfg(not(debug_assertions))]
+use std::sync::Mutex;
+#[cfg(not(debug_assertions))]
 use std::time::Duration;
 #[cfg(not(debug_assertions))]
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+/// Holds the Bun server child process so we can kill it on app exit.
+#[cfg(not(debug_assertions))]
+struct ServerProcess(Mutex<Child>);
 
 /// Ask the OS for a free port by binding to port 0, then immediately release it.
 #[cfg(not(debug_assertions))]
@@ -50,12 +58,15 @@ pub fn run() {
 
                 // Spawn js-runtime via std::process::Command (not Tauri sidecar API)
                 // This avoids linuxdeploy trying to run ldd on the Bun binary.
-                std::process::Command::new(&bun_bin)
+                let child = std::process::Command::new(&bun_bin)
                     .arg(&index_js)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")
                     .spawn()
                     .expect("failed to spawn js-runtime");
+
+                // Store the child so we can kill it when Tauri exits.
+                app.manage(ServerProcess(Mutex::new(child)));
 
                 // Poll until the SvelteKit server is ready (max ~10s)
                 let health_url = format!("{server_url}/");
@@ -90,6 +101,16 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                #[cfg(not(debug_assertions))]
+                if let Some(server) = app.try_state::<ServerProcess>() {
+                    if let Ok(mut child) = server.0.lock() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        });
 }
