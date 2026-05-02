@@ -107,11 +107,11 @@ Bun.serve({
     // Device info — canonical path used by app for probe + device info
     if (path === '/ccapi/ver100/deviceinformation') {
       return Response.json({
-        productname: 'Canon EOS R6 Mark II',
+        productname: 'Canon EOS Mock Device',
         manufacturer: 'Canon Inc.',
-        modeldescription: 'Canon EOS R6m2',
-        serialnumber: '000000000000',
-        firmwareversion: '1.6.0',
+        modeldescription: 'Canon EOS Mock Device',
+        serialnumber: '012345678',
+        firmwareversion: '1.0.0',
         macaddress: 'aa:bb:cc:dd:ee:ff',
       });
     }
@@ -120,9 +120,9 @@ Bun.serve({
     if (path === '/ccapi/ver100/devicestatus/deviceinfo') {
       return Response.json({
         manufacturer: 'Canon Inc.',
-        modeldescription: 'Canon EOS R6m2',
-        serialnumber: '000000000000',
-        firmwareversion: '1.6.0',
+        modeldescription: 'Canon EOS Mock Device',
+        serialnumber: '012345678',
+        firmwareversion: '1.0.0',
         macaddress: 'aa:bb:cc:dd:ee:ff',
       });
     }
@@ -132,14 +132,14 @@ Bun.serve({
       return Response.json({
         name: 'battery',
         kind: 'battery',
-        value: [{ kind: 'battery', name: 'LP-E6NH', level: 'high', quality: 'normal' }],
+        value: [{ kind: 'battery', name: 'LP-E6NH', level: 'half', quality: 'normal' }],
       });
     }
 
     // Battery list (ver110)
     if (path === '/ccapi/ver110/devicestatus/batterylist') {
       return Response.json({
-        batterylist: [{ kind: 'battery', name: 'LP-E6NH', level: 'high', quality: 'normal' }],
+        batterylist: [{ kind: 'battery', name: 'LP-E6NH', level: 'half', quality: 'normal' }],
       });
     }
 
