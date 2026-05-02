@@ -6,12 +6,16 @@
 // Safe to run multiple times (idempotent).
 
 import { execSync } from 'child_process';
-import { writeFileSync, rmSync, readFileSync } from 'fs';
+import { writeFileSync, rmSync, readFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const buildDir = join(root, 'build');
+// Install into server_modules/ (not build/node_modules) to avoid Tauri's
+// frontendDist scan rejecting node_modules inside the build directory.
+// Tauri resources map server_modules/ → build/node_modules inside the .app,
+// so Bun can resolve deps from build/node_modules at runtime.
+const buildDir = join(root, 'server_modules');
 const pkgPath = join(buildDir, 'package.json');
 
 // Packages actually imported by server-side code at runtime:
@@ -30,7 +34,10 @@ for (const dep of SERVER_DEPS) {
   versions[dep] = v;
 }
 
-// Write a minimal package.json into build/ for pnpm to install against
+// Ensure the target directory exists
+mkdirSync(buildDir, { recursive: true });
+
+// Write a minimal package.json into server_modules/ for pnpm to install against
 writeFileSync(pkgPath, JSON.stringify({
   name: 'tethr-server',
   version: '0.0.0',
@@ -39,16 +46,18 @@ writeFileSync(pkgPath, JSON.stringify({
   dependencies: versions,
 }, null, 2));
 
-console.log('[postbuild] Installing production deps into build/node_modules...');
+// Use npm (not pnpm) so node_modules is a flat, copy-safe layout without symlinks.
+// pnpm uses a virtual store with symlinks that break when Tauri copies resources into the .app.
+console.log('[postbuild] Installing production deps into server_modules/ (via npm)...');
 try {
-  execSync('pnpm install --prod --prefer-offline --ignore-scripts', {
+  execSync('npm install --omit=dev --ignore-scripts', {
     cwd: buildDir,
     stdio: 'inherit',
   });
 } finally {
-  // Remove the temporary package.json (keep node_modules)
+  // Remove the temporary package.json and lockfile (keep node_modules)
   rmSync(pkgPath, { force: true });
-  rmSync(join(buildDir, 'pnpm-lock.yaml'), { force: true });
+  rmSync(join(buildDir, 'package-lock.json'), { force: true });
 }
 
 console.log('[postbuild] Production deps installed ✓');

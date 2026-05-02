@@ -26,7 +26,7 @@
     ],
     "resources": {
       "../build": "build",
-      "../build/node_modules": "build/node_modules"
+      "../server_modules/node_modules": "build/node_modules"
     }
   }
 }
