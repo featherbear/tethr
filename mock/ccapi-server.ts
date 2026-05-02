@@ -128,18 +128,20 @@ Bun.serve({
     }
 
     // Battery
+    // ver100 battery — returns named level ('full'|'high'|'half'|'quarter'|'low'|...)
     if (path === '/ccapi/ver100/devicestatus/battery') {
       return Response.json({
-        name: 'battery',
         kind: 'battery',
-        value: [{ kind: 'battery', name: 'LP-E6NH', level: 'half', quality: 'normal' }],
+        name: 'LP-E6NH',
+        quality: 'normal',
+        level: 'half',
       });
     }
 
-    // Battery list (ver110)
+    // ver110 batterylist — returns numeric % level as a string e.g. "50"
     if (path === '/ccapi/ver110/devicestatus/batterylist') {
       return Response.json({
-        batterylist: [{ kind: 'battery', name: 'LP-E6NH', level: 'half', quality: 'normal' }],
+        batterylist: [{ position: 'camera', kind: 'battery', name: 'LP-E6NH', quality: 'normal', level: '50' }],
       });
     }
 
