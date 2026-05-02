@@ -148,8 +148,8 @@ Bun.serve({
     // Lens
     if (path === '/ccapi/ver100/devicestatus/lens') {
       return Response.json({
-        name: 'lens',
-        value: 'Mock 24-70mm f/2.8',
+        mount: true,
+        name: 'Mock 24-70mm f/2.8',
       });
     }
 
