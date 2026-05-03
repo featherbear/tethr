@@ -14,7 +14,7 @@
 //
 // Uses only Node built-ins — no npm deps.
 
-import { createWriteStream, mkdirSync, chmodSync, copyFileSync, renameSync, rmSync, readdirSync, statSync } from 'fs';
+import { createWriteStream, mkdirSync, chmodSync, renameSync, rmSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { get } from 'https';
@@ -246,15 +246,6 @@ renameSync(binPath, destPath);
 rmSync(tmpDir, { recursive: true, force: true });
 
 if (!isWin) chmodSync(destPath, 0o755);
-
-// Also create a generic 'js-runtime' copy in binaries/ for the Tauri resources map.
-// tauri.conf.json maps src-tauri/binaries/js-runtime → Resources/js-runtime so the
-// binary lands in Contents/Resources/ (not MacOS/) without needing externalBin.
-const genericName = `js-runtime${suffix}`;
-const genericPath = join(destDir, genericName);
-copyFileSync(destPath, genericPath);
-if (!isWin) chmodSync(genericPath, 0o755);
-console.log(`✅  Generic binary: ${genericName}`);
 
 // Copy into build/ so it's available during dev / smoke test
 copyToBuildDir(destPath, isWin);

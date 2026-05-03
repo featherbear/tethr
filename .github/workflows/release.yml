@@ -75,6 +75,9 @@ jobs:
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
+      - name: Prepare sidecar binary
+        run: node scripts/prepare-sidecar.mjs
+
       - name: Build
         shell: bash
         env:
