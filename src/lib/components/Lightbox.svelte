@@ -175,31 +175,53 @@
     if (e.key === 'c' || e.key === 'C') { showControls = !showControls; return; }
   }
 
+  // ---------------------------------------------------------------------------
+  // Button idle fade — dim buttons after 3s of inactivity, restore on mouse move
+  // ---------------------------------------------------------------------------
+  const IDLE_TIMEOUT_MS = 3_000;
+  let buttonsIdle = $state(false);
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function resetIdleTimer() {
+    buttonsIdle = false;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { buttonsIdle = true; }, IDLE_TIMEOUT_MS);
+  }
+
+  // Start the timer immediately when lightbox opens
+  $effect(() => {
+    resetIdleTimer();
+    return () => { if (idleTimer) clearTimeout(idleTimer); };
+  });
+
 </script>
 
-<svelte:window onkeydown={handleKeydown} onfullscreenchange={fs.handleChange} />
+<svelte:window onkeydown={handleKeydown} onfullscreenchange={fs.handleChange} onmousemove={resetIdleTimer} ontouchstart={resetIdleTimer} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="lightbox" transition:fade={{ duration: 150 }} onclick={(e) => e.target === e.currentTarget && onclose()}>
 
-  <!-- Close -->
-  <button class="btn-icon btn-close" onclick={onclose} aria-label="Close lightbox">✕</button>
+  <!-- Floating buttons — fade when idle -->
+  <div class="chrome" class:chrome--idle={buttonsIdle} onmouseenter={resetIdleTimer}>
+    <!-- Close -->
+    <button class="btn-icon btn-close" onclick={onclose} aria-label="Close lightbox">✕</button>
 
-  <!-- Fullscreen -->
-  <button class="btn-icon btn-fullscreen" onclick={fs.toggle} title="Fullscreen (F)" aria-label="Toggle fullscreen">
-    ⛶
-    <span class="sr-only">{fs.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
-  </button>
+    <!-- Fullscreen -->
+    <button class="btn-icon btn-fullscreen" onclick={fs.toggle} title="Fullscreen (F)" aria-label="Toggle fullscreen">
+      ⛶
+      <span class="sr-only">{fs.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
+    </button>
 
-  <!-- Display Controls button -->
-  <button
-    class="btn-icon btn-controls"
-    class:active={showControls}
-    onclick={() => showControls = !showControls}
-    title="Display controls (C)"
-    aria-label="Toggle display controls"
-  >⚙</button>
+    <!-- Display Controls button -->
+    <button
+      class="btn-icon btn-controls"
+      class:active={showControls}
+      onclick={() => showControls = !showControls}
+      title="Display controls (C)"
+      aria-label="Toggle display controls"
+    >⚙</button>
+  </div>
 
   <!-- Display Controls panel -->
   {#if showControls}
@@ -368,6 +390,19 @@
     justify-content: center;
   }
 
+  /* Chrome wrapper — holds the floating buttons, fades when idle */
+  .chrome {
+    position: absolute;
+    inset: 0;
+    pointer-events: none; /* clicks pass through to lightbox */
+    z-index: 10;
+    transition: opacity 0.6s ease;
+  }
+
+  .chrome--idle {
+    opacity: 0.15; /* still visible — easy to find on touch screens */
+  }
+
   /* Floating buttons */
   .btn-icon {
     position: absolute;
@@ -383,13 +418,14 @@
     justify-content: center;
     cursor: pointer;
     font-size: 0.9rem;
+    pointer-events: all; /* re-enable clicks on buttons even though chrome has none */
     transition: background 0.15s, color 0.15s;
   }
   .btn-icon:hover { background: rgba(255,255,255,0.12); color: #e5e7eb; }
 
-  .btn-close      { right: 1rem; z-index: 10; }
-  .btn-fullscreen { right: 3.5rem; z-index: 10; }
-  .btn-controls   { right: 6rem; z-index: 10; font-size: 1.25rem; }
+  .btn-close      { right: 1rem; }
+  .btn-fullscreen { right: 3.5rem; }
+  .btn-controls   { right: 6rem; font-size: 1.25rem; }
   .btn-controls.active { background: rgba(var(--accent-rgb),0.15); border-color: rgba(var(--accent-rgb),0.5); color: var(--accent-light); }
 
   .sr-only {
