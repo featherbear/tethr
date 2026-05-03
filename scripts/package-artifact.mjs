@@ -65,51 +65,13 @@ if (os === 'darwin') {
   if (!existsSync(tethrExe))     throw new Error(`tethr.exe not found at ${tethrExe}`);
   if (!existsSync(resourcesDir)) throw new Error(`resources/ not found at ${resourcesDir}`);
 
-  dest = join(root, `tethr-${tag}-${label}.exe`);
+  dest = join(root, `tethr-${tag}-${label}.zip`);
 
-  // Self-extracting archive using 7-Zip SFX.
-  // 7zSD.sfx is not pre-installed — download it from 7-Zip releases.
-  const sevenZip  = 'C:\\Program Files\\7-Zip\\7z.exe';
-  const sfxStub   = join(root, 'tmp-7zSD.sfx');
-  const archiveZip = join(root, 'tmp-tethr.7z');
-  const sfxConfig = join(root, 'tmp-sfx-config.txt');
-
-  // Download 7zSD.sfx (console SFX module — works without GUI)
-  execSync(
-    `powershell -Command "Invoke-WebRequest -Uri 'https://github.com/ip7z/7zip/releases/download/24.09/7z2409-extra.7z' -OutFile 'tmp-7zextra.7z'"`,
-    { stdio: 'inherit' }
-  );
-  execSync(`"${sevenZip}" e tmp-7zextra.7z 7zSD.sfx -o"${join(root)}" -y`, { stdio: 'inherit' });
-
-  // SFX config: extract to %TEMP%\tethr-{tag} and run tethr.exe
-  const sfxConfigContent = [
-    ';!@Install@!UTF-8!',
-    'Title="Tethr"',
-    `ExtractPath="%TEMP%\\tethr-${tag}"`,
-    'RunProgram="tethr.exe"',
-    ';!@InstallEnd@!',
-  ].join('\r\n');
-  const { writeFileSync } = await import('fs');
-  writeFileSync(sfxConfig, sfxConfigContent, 'utf8');
-
-  // Create 7z archive from the release dir so tethr.exe + resources/ are at root
-  execSync(`"${sevenZip}" a -mx=5 "${archiveZip}" -w"${releaseDir}" tethr.exe resources`, { stdio: 'inherit', cwd: releaseDir });
-
-  // Concatenate: SFX stub + config + archive → self-extracting exe
-  execSync(
-    `powershell -Command "` +
-    `$sfx=[IO.File]::ReadAllBytes('${sfxStub}');` +
-    `$cfg=[Text.Encoding]::UTF8.GetBytes([IO.File]::ReadAllText('${sfxConfig}'));` +
-    `$arc=[IO.File]::ReadAllBytes('${archiveZip}');` +
-    `$s=New-Object IO.FileStream('${dest}',[IO.FileMode]::Create);` +
-    `$s.Write($sfx,0,$sfx.Length);$s.Write($cfg,0,$cfg.Length);$s.Write($arc,0,$arc.Length);$s.Close()"`,
-    { stdio: 'inherit' }
-  );
-
-  // Cleanup temp files
-  for (const f of [sfxStub, archiveZip, sfxConfig, join(root, 'tmp-7zextra.7z')]) {
-    try { execSync(`del /f "${f}"`, { stdio: 'pipe', shell: true }); } catch {}
-  }
+  // Portable zip — users extract and run tethr.exe directly.
+  // SFX stubs (7zSD.sfx) are x86-only and won't run on arm64 Windows.
+  // A zip works on all Windows versions and architectures without compatibility issues.
+  const sevenZip = 'C:\\Program Files\\7-Zip\\7z.exe';
+  execSync(`"${sevenZip}" a -mx=5 "${dest}" tethr.exe resources`, { stdio: 'inherit', cwd: releaseDir });
 } else {
   console.error(`❌  Unsupported OS: ${os}`);
   process.exit(1);
