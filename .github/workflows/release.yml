@@ -82,6 +82,16 @@ jobs:
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
+      - name: Stage runtime binary into build/
+        shell: bash
+        run: |
+          # Copy js-runtime into build/runtime/ so Tauri's "../build" resource
+          # map includes it automatically — avoids cross-platform tauri.conf.json issues.
+          mkdir -p build/runtime
+          RUNTIME_SRC=$(ls src-tauri/binaries/runtime/)
+          cp "src-tauri/binaries/runtime/$RUNTIME_SRC" "build/runtime/$RUNTIME_SRC"
+          echo "Staged: build/runtime/$RUNTIME_SRC"
+
       - name: Verify resources exist before bundling
         shell: bash
         run: |
@@ -108,28 +118,17 @@ jobs:
           echo "=== Tauri build log (resource lines) ==="
           grep -i "resource\|copy\|bundle\|skip\|warn" /tmp/tauri-build.log || true
 
-          # Copy the js-runtime binary into resources/ — not handled by Tauri's resources
-          # map (removed to avoid cross-platform filename validation issues).
-          # --no-bundle: Tauri doesn't copy resources at all, so we copy everything.
-          # bundled platforms: Tauri copies build/ and node_modules/ but not runtime/.
-          TARGET_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release"
-          RUNTIME_SRC="src-tauri/binaries/runtime"
-          RUNTIME_DEST="$TARGET_DIR/resources/runtime"
-          mkdir -p "$RUNTIME_DEST"
-
+          # Windows --no-bundle: Tauri doesn't copy resources, do it manually.
+          # macOS/Linux: Tauri already handles resources via the resources map
+          # (build/ includes runtime/ since we staged it there before bundling).
           if [ "${{ matrix.bundles }}" = "none" ]; then
-            # Windows --no-bundle: copy everything manually
+            TARGET_DIR="src-tauri/target/release"
             mkdir -p "$TARGET_DIR/resources/build"
             cp -r build/. "$TARGET_DIR/resources/build/"
             cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
-            cp "$RUNTIME_SRC/js-runtime.exe" "$RUNTIME_DEST/js-runtime.exe"
-          else
-            # macOS/Linux: Tauri already copied build/ and node_modules/; just add runtime
-            RUNTIME_BIN=$(ls "$RUNTIME_SRC/" | head -1)
-            cp "$RUNTIME_SRC/$RUNTIME_BIN" "$RUNTIME_DEST/$RUNTIME_BIN"
+            echo "=== Windows resources/build/runtime/ ==="
+            ls -lh "$TARGET_DIR/resources/build/runtime/" || echo "runtime/ missing!"
           fi
-          echo "=== resources/runtime/ ==="
-          ls -lh "$RUNTIME_DEST/"
 
       - name: Inspect bundle contents
         shell: bash

@@ -48,10 +48,12 @@ pub fn run() {
                 // js-runtime is in Resources/runtime/ (a folder mapped via tauri.conf.json).
                 // Using a folder means a single resources entry covers all platforms,
                 // and Windows can keep the .exe extension.
+                // js-runtime is staged into build/runtime/ before bundling,
+                // so it ends up in Resources/build/runtime/ inside the .app.
                 let bun_bin = if cfg!(windows) {
-                    resource_dir.join("runtime").join("js-runtime.exe")
+                    resource_dir.join("build").join("runtime").join("js-runtime.exe")
                 } else {
-                    resource_dir.join("runtime").join("js-runtime")
+                    resource_dir.join("build").join("runtime").join("js-runtime")
                 };
                 let index_js = resource_dir.join("build").join("index.js");
 
