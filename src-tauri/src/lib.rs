@@ -40,6 +40,11 @@ pub fn run() {
                     .resource_dir()
                     .expect("could not resolve resource dir");
 
+                // Change the process CWD away from wherever the .app was launched
+                // (e.g. ~/Downloads/). This prevents any relative path access from
+                // triggering a macOS TCC "Downloads folder" permission prompt.
+                std::env::set_current_dir(&resource_dir).ok();
+
                 // js-runtime is in Resources/runtime/ (a folder mapped via tauri.conf.json).
                 // Using a folder means a single resources entry covers all platforms,
                 // and Windows can keep the .exe extension.
