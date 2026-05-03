@@ -20,7 +20,9 @@
   let lightboxIndex = $state<number | null>(null);
   let liveSettings = $state<ShootingSettings | null>(null);
 
-  // Load persisted photos from IndexedDB, then enqueue thumbnail + display fetches
+  // Load persisted photos from IndexedDB, then enqueue thumbnail fetches.
+  // Each thumbnail fetch calls scheduleIdlePrefetch() on completion — no need
+  // to call it here (thumbnails haven't loaded yet at this point).
   if (browser) {
     photosStore.init().then(() => {
       for (const photo of photosStore.photos) {
@@ -30,7 +32,9 @@
           if (filename) enqueueThumbnail(photo.id, photo.dirname, filename);
         }
       }
-      scheduleIdlePrefetch();
+      // Schedule idle prefetch after a short delay to allow cache hits to populate thumbnailUrl
+      // before runIdlePrefetch checks for p.thumbnailUrl
+      idlePrefetchTimer = setTimeout(runIdlePrefetch, 1_000);
     });
   }
 
@@ -253,6 +257,10 @@
   // ---------------------------------------------------------------------------
   const IMAGE_CACHE = 'tethr-images-v1';
 
+  // Cache API requires valid HTTP(S) URLs — use a fake https origin so match() works
+  function thumbCacheKey(id: string)  { return `https://tethr-cache/thumb/${id}`; }
+  function fullCacheKey(id: string)   { return `https://tethr-cache/full/${id}`; }
+
   async function getCachedBlob(cacheKey: string): Promise<Blob | null> {
     try {
       const cache = await caches.open(IMAGE_CACHE);
@@ -270,7 +278,7 @@
 
   async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
     const camPath = toApiPath(`${dirname}/${filename}`);
-    const cacheKey = `tethr-cache://thumb/${id}`;
+    const cacheKey = thumbCacheKey(id);
     log.debug({ id, camPath, attempt }, 'Fetching thumbnail');
     try {
       // Check cache first (keyed by UUID — safe even if filenames repeat across sessions)
@@ -320,7 +328,7 @@
     if (!displayVariant) return;
 
     const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
-    const cacheKey = `tethr-cache://full/${id}`;
+    const cacheKey = fullCacheKey(id);
     log.debug({ id, camPath, attempt }, 'Fetching display image');
     try {
       // Check cache first
