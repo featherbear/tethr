@@ -1,261 +1,226 @@
 #!/usr/bin/env node
-// download-sidecar.mjs — Download a JS runtime (Bun by default, Node optional)
-// for the target platform/arch and place it in src-tauri/binaries/ with the
-// Tauri triple suffix.
-//
-// Usage: node scripts/download-sidecar.mjs <platform> <arch> [runtime]
-//   platform: darwin | linux | win
-//   arch:     x64 | arm64 | universal (darwin only)
-//   runtime:  bun (default) | node
-//
-// Note: the binary is always written as `js-runtime` regardless of runtime,
-// so lib.rs and the rest of the build don't need to change. Node.js works as
-// a drop-in for Bun for our adapter-node SvelteKit output.
-//
-// Uses only Node built-ins — no npm deps.
+/**
+ * download-sidecar.mjs — download the JS runtime (Bun or Node) for the target platform
+ * and write it directly to src-tauri/binaries/js-runtime (no arch suffix).
+ *
+ * Usage:
+ *   node scripts/download-sidecar.mjs <platform> <arch> [runtime]
+ *
+ *   platform: darwin | linux | win
+ *   arch:     x64 | arm64 | universal
+ *   runtime:  bun (default) | node
+ *
+ * macOS universal:
+ *   Downloads both arm64 and x64 Bun binaries and merges them with `lipo`
+ *   into a fat binary that runs natively on both Apple Silicon and Intel.
+ *
+ * Output:
+ *   src-tauri/binaries/js-runtime  (executable, chmod 755 on non-Windows)
+ *   build/js-runtime               (copy for dev server / smoke tests)
+ *
+ * In CI, writes SIDECAR_PATH to GITHUB_ENV.
+ */
 
-import { createWriteStream, mkdirSync, chmodSync, renameSync, rmSync, readdirSync, statSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { get } from 'https';
-import { execSync } from 'child_process';
-import { createGunzip } from 'zlib';
+import { createWriteStream, mkdirSync, chmodSync, copyFileSync, existsSync, statSync } from 'node:fs';
+import { join, dirname }    from 'node:path';
+import { fileURLToPath }    from 'node:url';
+import { get }              from 'node:https';
+import { execSync }         from 'node:child_process';
+import { tmpdir }           from 'node:os';
+import { randomBytes }      from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
-const destDir = join(root, 'src-tauri', 'binaries');
+const root      = join(__dirname, '..');
+const binDir    = join(root, 'src-tauri', 'binaries');
+const buildDir  = join(root, 'build');
 
-const [,, nodePlatform, nodeArch, runtimeArg] = process.argv;
-const runtime = (runtimeArg || 'bun').toLowerCase();
-if (!['bun', 'node'].includes(runtime)) {
-  console.error(`❌  Unknown runtime: ${runtime} (must be 'bun' or 'node')`);
-  process.exit(1);
-}
+mkdirSync(binDir,   { recursive: true });
+mkdirSync(buildDir, { recursive: true });
 
-if (!nodePlatform || !nodeArch) {
-  console.error('Usage: node download-sidecar.mjs <platform> <arch>');
-  console.error('  platform: darwin | linux | win');
-  console.error('  arch:     x64 | arm64 | universal (darwin only)');
-  process.exit(1);
-}
+// ---------------------------------------------------------------------------
+// Args
+// ---------------------------------------------------------------------------
 
-// Map platform+arch → Rust triple (used for Tauri sidecar binary name)
-const tripleMap = {
-  'darwin-arm64':     'aarch64-apple-darwin',
-  'darwin-x64':       'x86_64-apple-darwin',
-  'darwin-universal': 'universal-apple-darwin',
-  'linux-x64':        'x86_64-unknown-linux-gnu',
-  'linux-arm64':      'aarch64-unknown-linux-gnu',
-  'win-x64':          'x86_64-pc-windows-msvc',
-  'win-arm64':        'aarch64-pc-windows-msvc',
-};
-
-// Map platform+arch → Bun release asset name
-const bunAssetMap = {
-  'darwin-arm64': 'bun-darwin-aarch64',
-  'darwin-x64':   'bun-darwin-x64',
-  'linux-x64':    'bun-linux-x64',
-  'linux-arm64':  'bun-linux-aarch64',
-  'win-x64':      'bun-windows-x64',
-  'win-arm64':    'bun-windows-x64', // Bun doesn't yet ship a native win-arm64 binary
-};
-
-const key = `${nodePlatform}-${nodeArch}`;
-const triple = tripleMap[key];
-if (!triple) {
-  console.error(`❌  Unknown platform/arch combination: ${key}`);
-  process.exit(1);
-}
+const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-const suffix = isWin ? '.exe' : '';
+// Output path — always without arch suffix; Tauri resources map uses this name
+const outName = isWin ? 'js-runtime.exe' : 'js-runtime';
+const outPath = join(binDir, outName);
 
-mkdirSync(destDir, { recursive: true });
+console.log(`[download-sidecar] platform=${nodePlatform} arch=${nodeArch} runtime=${runtime}`);
 
-// Copy the Bun binary into build/ so it's included in the 'build' resource
-// This avoids needing a separate resource entry and sidesteps linuxdeploy ldd.
-function copyToBuildDir(binPath, isWin) {
-  const buildDir = join(root, 'build');
-  const ext = isWin ? '.exe' : '';
-  const dest = join(buildDir, `js-runtime${ext}`);
-  mkdirSync(buildDir, { recursive: true });
-  if (isWin) {
-    execSync(`copy /Y "${binPath}" "${dest}"`, { stdio: 'inherit', shell: true });
-  } else {
-    execSync(`cp "${binPath}" "${dest}"`, { stdio: 'inherit' });
-    // Do NOT set +x here — Tauri moves executable resources to MacOS/ on macOS.
-    // lib.rs sets +x at runtime before spawning.
-    chmodSync(dest, 0o644);
-  }
-  console.log(`✅  Copied to build/js-runtime${ext}`);
-}
+// ---------------------------------------------------------------------------
+// Download helpers
+// ---------------------------------------------------------------------------
 
-// Follow redirects and return the response stream
-function download(url) {
+/** Download a URL to a temp file, return the file path. */
+function download(url, destPath) {
   return new Promise((resolve, reject) => {
-    const follow = (u) => get(u, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        follow(res.headers.location);
-      } else if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode} for ${u}`));
-      } else {
-        resolve(res);
-      }
-    }).on('error', reject);
-    follow(url);
+    console.log(`  ↓ ${url}`);
+    function request(u) {
+      get(u, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          return request(res.headers.location);
+        }
+        if (res.statusCode !== 200) {
+          return reject(new Error(`HTTP ${res.statusCode} for ${u}`));
+        }
+        const out = createWriteStream(destPath);
+        res.pipe(out);
+        out.on('finish', () => { out.close(); resolve(destPath); });
+        out.on('error', reject);
+      }).on('error', reject);
+    }
+    request(url);
   });
 }
 
-function saveToFile(stream, filePath) {
-  return new Promise((resolve, reject) => {
-    const out = createWriteStream(filePath);
-    stream.pipe(out);
-    out.on('finish', resolve);
-    out.on('error', reject);
-  });
+function tmpFile(suffix = '') {
+  return join(tmpdir(), `sidecar-${randomBytes(4).toString('hex')}${suffix}`);
 }
 
-// Map platform+arch → Node.js download asset suffix
-const nodeAssetMap = {
-  'darwin-arm64': 'darwin-arm64',
-  'darwin-x64':   'darwin-x64',
-  'linux-x64':    'linux-x64',
-  'linux-arm64':  'linux-arm64',
-  'win-x64':      'win-x64',
-  'win-arm64':    'win-arm64',
+// ---------------------------------------------------------------------------
+// Bun download URLs
+// ---------------------------------------------------------------------------
+
+const BUN_VERSION = '1.2.13';
+
+const bunUrlMap = {
+  'darwin-arm64':   `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-darwin-aarch64.zip`,
+  'darwin-x64':     `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-darwin-x64-baseline.zip`,
+  'linux-x64':      `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64-baseline.zip`,
+  'linux-arm64':    `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-aarch64.zip`,
+  'win-x64':        `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-windows-x64-baseline.zip`,
+  'win-arm64':      `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-windows-x64-baseline.zip`, // no native arm64 bun yet
 };
 
-const NODE_VERSION = process.version.replace(/^v/, ''); // match the host Node
+const bunBinaryInZip = {
+  'darwin-arm64':   'bun-darwin-aarch64/bun',
+  'darwin-x64':     'bun-darwin-x64-baseline/bun',
+  'linux-x64':      'bun-linux-x64-baseline/bun',
+  'linux-arm64':    'bun-linux-aarch64/bun',
+  'win-x64':        'bun-windows-x64-baseline/bun.exe',
+  'win-arm64':      'bun-windows-x64-baseline/bun.exe',
+};
 
-async function downloadNode(platform, arch) {
-  const assetKey = `${platform}-${arch}`;
-  const assetSuffix = nodeAssetMap[assetKey];
-  if (!assetSuffix) throw new Error(`No Node asset for ${assetKey}`);
+// ---------------------------------------------------------------------------
+// Node.js download URLs
+// ---------------------------------------------------------------------------
 
-  const isWindows = platform === 'win';
-  const ext = isWindows ? 'zip' : 'tar.xz';
-  const baseName = `node-v${NODE_VERSION}-${assetSuffix}`;
-  const url = `https://nodejs.org/dist/v${NODE_VERSION}/${baseName}.${ext}`;
-  console.log(`    ${assetKey} (node v${NODE_VERSION}): ${url}`);
+const NODE_VERSION = process.version.replace(/^v/, '');
 
-  const archivePath = join(destDir, `_node-${assetKey}.${ext}`);
-  const tmpDir = join(destDir, `_node-${assetKey}-tmp`);
+const nodeUrlMap = {
+  'linux-x64':   `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz`,
+  'linux-arm64': `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz`,
+};
 
-  const res = await download(url);
-  await saveToFile(res, archivePath);
+// ---------------------------------------------------------------------------
+// Extract a single file from a zip archive (cross-platform via node:zlib + unzip CLI)
+// ---------------------------------------------------------------------------
 
-  mkdirSync(tmpDir, { recursive: true });
-
-  if (isWindows) {
-    execSync(
-      `powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpDir}' -Force"`,
-      { stdio: 'inherit' }
-    );
-  } else {
-    execSync(`tar -xJf "${archivePath}" -C "${tmpDir}"`, { stdio: 'inherit' });
-  }
-
-  const nodeBin = isWindows
-    ? join(tmpDir, baseName, 'node.exe')
-    : join(tmpDir, baseName, 'bin', 'node');
-
-  rmSync(archivePath, { force: true });
-  return { binPath: nodeBin, tmpDir };
+async function extractFromZip(zipPath, entryName, destPath) {
+  // Try system unzip first (fast, available on macOS/Linux/Windows CI)
+  try {
+    if (isWin) {
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${dirname(destPath)}' -Force"`, { stdio: 'pipe' });
+      // PowerShell extracts the whole zip; find the file
+      const extracted = join(dirname(destPath), entryName.replace(/\//g, '\\'));
+      if (existsSync(extracted)) {
+        copyFileSync(extracted, destPath);
+        return;
+      }
+    } else {
+      execSync(`unzip -p "${zipPath}" "${entryName}" > "${destPath}"`, { stdio: 'pipe', shell: true });
+      return;
+    }
+  } catch { /* fall through */ }
+  throw new Error(`Could not extract ${entryName} from ${zipPath}`);
 }
 
-async function downloadRuntime(platform, arch) {
-  return runtime === 'node'
-    ? downloadNode(platform, arch)
-    : downloadBun(platform, arch);
-}
+// ---------------------------------------------------------------------------
+// Download a single arch Bun binary, return path to the extracted executable
+// ---------------------------------------------------------------------------
 
 async function downloadBun(platform, arch) {
-  const assetKey = `${platform}-${arch}`;
-  const assetName = bunAssetMap[assetKey];
-  if (!assetName) throw new Error(`No Bun asset for ${assetKey}`);
+  const key = `${platform}-${arch}`;
+  const url = bunUrlMap[key];
+  if (!url) throw new Error(`No Bun URL for ${key}`);
+  const entry = bunBinaryInZip[key];
 
-  const url = `https://github.com/oven-sh/bun/releases/latest/download/${assetName}.zip`;
-  console.log(`    ${assetKey}: ${url}`);
+  const zipPath = tmpFile('.zip');
+  await download(url, zipPath);
 
-  const isWindows = platform === 'win';
-  const zipPath = join(destDir, `_bun-${assetKey}.zip`);
-  const tmpDir  = join(destDir, `_bun-${assetKey}-tmp`);
+  const exeName = isWin ? 'bun.exe' : 'bun';
+  const extractedPath = tmpFile(isWin ? '.exe' : '');
+  await extractFromZip(zipPath, entry, extractedPath);
+  if (!isWin) chmodSync(extractedPath, 0o755);
+  return extractedPath;
+}
 
-  const res = await download(url);
-  await saveToFile(res, zipPath);
+// ---------------------------------------------------------------------------
+// Download Node.js binary, return path to the extracted node executable
+// ---------------------------------------------------------------------------
 
-  mkdirSync(tmpDir, { recursive: true });
+async function downloadNode(platform, arch) {
+  const key = `${platform}-${arch}`;
+  const url = nodeUrlMap[key];
+  if (!url) throw new Error(`No Node URL for ${key}`);
 
-  if (isWindows) {
-    execSync(
-      `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${tmpDir}' -Force"`,
-      { stdio: 'inherit' }
-    );
+  const tarPath = tmpFile('.tar.xz');
+  await download(url, tarPath);
+
+  const extractDir = tmpFile('-dir');
+  mkdirSync(extractDir, { recursive: true });
+  execSync(`tar -xJf "${tarPath}" -C "${extractDir}" --strip-components=2 "*/bin/node"`, { stdio: 'pipe' });
+  const nodeBin = join(extractDir, 'node');
+  chmodSync(nodeBin, 0o755);
+  return nodeBin;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main() {
+  let finalBin;
+
+  if (nodePlatform === 'darwin' && nodeArch === 'universal') {
+    // macOS universal: download arm64 + x64, merge with lipo
+    console.log('[download-sidecar] Building macOS universal binary with lipo...');
+    const [arm64, x64] = await Promise.all([
+      downloadBun('darwin', 'arm64'),
+      downloadBun('darwin', 'x64'),
+    ]);
+    const lipoOut = tmpFile();
+    execSync(`lipo -create -output "${lipoOut}" "${arm64}" "${x64}"`, { stdio: 'inherit' });
+    chmodSync(lipoOut, 0o755);
+    finalBin = lipoOut;
+    console.log('[download-sidecar] lipo merge complete');
+  } else if (runtime === 'node') {
+    finalBin = await downloadNode(nodePlatform, nodeArch);
   } else {
-    execSync(`unzip -q "${zipPath}" -d "${tmpDir}"`, { stdio: 'inherit' });
+    finalBin = await downloadBun(nodePlatform, nodeArch);
   }
 
-  // Bun zip contains bun-<platform>-<arch>/bun (or bun.exe on Windows)
-  const ext = isWindows ? '.exe' : '';
-  const subDir = readdirSync(tmpDir).find(d => d.startsWith('bun-')) || 'bun';
-  const bunBin = join(tmpDir, subDir, `bun${ext}`);
+  // Write to src-tauri/binaries/js-runtime (no arch suffix)
+  copyFileSync(finalBin, outPath);
+  if (!isWin) chmodSync(outPath, 0o755);
 
-  rmSync(zipPath, { force: true });
-  return { binPath: bunBin, tmpDir };
-}
+  // Also copy to build/ for dev server / smoke tests
+  const buildOut = join(buildDir, outName);
+  copyFileSync(finalBin, buildOut);
+  if (!isWin) chmodSync(buildOut, 0o755);
 
-// ── Universal macOS: Tauri lipo's the slices itself — just provide both ───
-// When building universal-apple-darwin, Tauri compiles aarch64 and x86_64
-// separately and expects individual sidecar binaries for each triple.
-if (nodePlatform === 'darwin' && nodeArch === 'universal') {
-  console.log('📦  Downloading Bun binaries for universal macOS build (arm64 + x64)...');
+  const sizeMB = (statSync(outPath).size / 1024 / 1024).toFixed(0);
+  console.log(`✅ js-runtime ready: ${outPath} (${sizeMB}MB)`);
 
-  const paths = {};
-  for (const [arch, triple] of [['arm64', 'aarch64-apple-darwin'], ['x64', 'x86_64-apple-darwin']]) {
-    const destPath = join(destDir, `js-runtime-${triple}`);
-    const { binPath, tmpDir } = await downloadBun('darwin', arch);
-    renameSync(binPath, destPath);
-    chmodSync(destPath, 0o755);
-    rmSync(tmpDir, { recursive: true, force: true });
-    paths[triple] = destPath;
-    const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-    console.log(`✅  js-runtime-${triple} (${sizeMB}MB)`);
+  // Export to GITHUB_ENV if in CI
+  const envFile = process.env.GITHUB_ENV;
+  if (envFile) {
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(envFile, `SIDECAR_PATH=${outPath}\n`);
   }
-
-  // Create universal binary via lipo
-  const universalPath = join(destDir, 'js-runtime-universal-apple-darwin');
-  execSync(
-    `lipo -create "${paths['aarch64-apple-darwin']}" "${paths['x86_64-apple-darwin']}" -output "${universalPath}"`,
-    { stdio: 'inherit' }
-  );
-  chmodSync(universalPath, 0o755);
-  copyToBuildDir(universalPath, false);
-  const sizeMB = (statSync(universalPath).size / 1024 / 1024).toFixed(0);
-  console.log(`✅  js-runtime-universal-apple-darwin (${sizeMB}MB)`);
-  process.exit(0);
 }
 
-// ── Single platform ────────────────────────────────────────────────────────
-const destName = `js-runtime-${triple}${suffix}`;
-const destPath = join(destDir, destName);
-
-console.log(`📦  Downloading ${runtime} for ${key} → ${triple}`);
-
-const { binPath, tmpDir } = await downloadRuntime(nodePlatform, nodeArch);
-renameSync(binPath, destPath);
-rmSync(tmpDir, { recursive: true, force: true });
-
-if (!isWin) chmodSync(destPath, 0o755);
-
-// Copy into build/ so it's available during dev / smoke test
-copyToBuildDir(destPath, isWin);
-
-const sizeMB = (statSync(destPath).size / 1024 / 1024).toFixed(0);
-console.log(`✅  Sidecar ready: ${destName} (${runtime}, ${sizeMB}MB)`);
-
-// Write artifact path to GITHUB_ENV if in CI
-const envFile = process.env.GITHUB_ENV;
-if (envFile) {
-  const { appendFileSync } = await import('fs');
-  appendFileSync(envFile, '');
-}
+main().catch(e => { console.error(e); process.exit(1); });
