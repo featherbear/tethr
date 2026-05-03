@@ -173,7 +173,13 @@ async function downloadNode(platform, arch) {
 
   const extractDir = tmpFile('-dir');
   mkdirSync(extractDir, { recursive: true });
-  execSync(`tar -xJf "${tarPath}" -C "${extractDir}" --strip-components=2 "*/bin/node"`, { stdio: 'pipe' });
+  // GNU tar (Linux) requires --wildcards for glob patterns; BSD tar (macOS) supports them by default.
+  // We try GNU tar first with --wildcards, fall back to BSD tar without it.
+  try {
+    execSync(`tar -xJf "${tarPath}" -C "${extractDir}" --wildcards --strip-components=2 "*/bin/node"`, { stdio: 'pipe' });
+  } catch {
+    execSync(`tar -xJf "${tarPath}" -C "${extractDir}" --strip-components=2 "*/bin/node"`, { stdio: 'pipe' });
+  }
   const nodeBin = join(extractDir, 'node');
   chmodSync(nodeBin, 0o755);
   return nodeBin;
