@@ -44,8 +44,10 @@ mkdirSync(buildDir, { recursive: true });
 const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-// Output path — always without arch suffix; Tauri resources map uses this name
-const outName = isWin ? 'js-runtime.exe' : 'js-runtime';
+// Always write the generic name WITHOUT .exe — tauri.conf.json resources map
+// uses 'binaries/js-runtime' on all platforms. Windows can execute a PE binary
+// via absolute path without the .exe extension when spawned from Rust.
+const outName = 'js-runtime';
 const outPath = join(binDir, outName);
 
 console.log(`[download-sidecar] platform=${nodePlatform} arch=${nodeArch} runtime=${runtime}`);
@@ -151,7 +153,7 @@ async function downloadBun(platform, arch) {
   const zipPath = tmpFile('.zip');
   await download(url, zipPath);
 
-  const exeName = isWin ? 'bun.exe' : 'bun';
+  // Temp file uses .exe on Windows for correct PE extraction, but final output is always js-runtime
   const extractedPath = tmpFile(isWin ? '.exe' : '');
   await extractFromZip(zipPath, entry, extractedPath);
   if (!isWin) chmodSync(extractedPath, 0o755);
@@ -207,8 +209,8 @@ async function main() {
   copyFileSync(finalBin, outPath);
   if (!isWin) chmodSync(outPath, 0o755);
 
-  // Also copy to build/ for dev server / smoke tests
-  const buildOut = join(buildDir, outName);
+  // Also copy to build/ for dev server / smoke tests (always js-runtime, no .exe)
+  const buildOut = join(buildDir, 'js-runtime');
   copyFileSync(finalBin, buildOut);
   if (!isWin) chmodSync(buildOut, 0o755);
 
