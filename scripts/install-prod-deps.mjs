@@ -1,42 +1,112 @@
 #!/usr/bin/env node
-// install-prod-deps.mjs — Install production npm dependencies into build/node_modules
-// so the Tauri sidecar (Bun runtime) can resolve them without a separate node_modules dir.
-//
-// Run automatically via the "postbuild" script in package.json.
-// Safe to run multiple times (idempotent).
+/**
+ * install-prod-deps.mjs — Install production npm dependencies into server_modules/node_modules
+ * so the Tauri sidecar (Bun/Node runtime) can resolve them at runtime.
+ *
+ * Run automatically via the "postbuild" script in package.json.
+ * Safe to run multiple times (idempotent).
+ *
+ * Auto-detects which packages are needed by scanning the build/server/ output
+ * for ESM imports that are not:
+ *   - relative paths (./  ../)    — bundled by Vite
+ *   - node: builtins              — available natively
+ *   - virtual SvelteKit paths     — $app/*, $lib/* (bundled by Vite)
+ *   - TypeScript type-only        — @types/*, types
+ *   - Internal spec paths         — @standard-schema/*
+ *
+ * Install into server_modules/ (not build/node_modules/) to avoid Tauri's
+ * frontendDist scan rejecting node_modules inside the build directory.
+ * Tauri resources map server_modules/ → build/node_modules/ inside the .app.
+ */
 
-import { execSync } from 'child_process';
-import { writeFileSync, rmSync, readFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { execSync }                                         from 'node:child_process';
+import { writeFileSync, rmSync, readFileSync, mkdirSync,
+         readdirSync, statSync }                            from 'node:fs';
+import { join, dirname }                                    from 'node:path';
+import { fileURLToPath }                                    from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-// Install into server_modules/ (not build/node_modules) to avoid Tauri's
-// frontendDist scan rejecting node_modules inside the build directory.
-// Tauri resources map server_modules/ → build/node_modules inside the .app,
-// so Bun can resolve deps from build/node_modules at runtime.
-const buildDir = join(root, 'server_modules');
-const pkgPath = join(buildDir, 'package.json');
+const root        = join(dirname(fileURLToPath(import.meta.url)), '..');
+const buildServer = join(root, 'build', 'server');
+const serverMod   = join(root, 'server_modules');
+const pkgPath     = join(serverMod, 'package.json');
 
-// Packages actually imported by server-side code at runtime:
-//   pino    — structured JSON logging
-//   undici  — camera HTTP client (Agent for TLS bypass)
-// @tauri-apps/* are client-side only (bundled by Vite into the browser chunks).
-const SERVER_DEPS = ['pino', 'undici'];
+// ---------------------------------------------------------------------------
+// Auto-detect external imports from build/server/**/*.js
+// ---------------------------------------------------------------------------
 
-const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const SKIP_PREFIXES = [
+  '.', '/', 'node:', '$app/', '$lib/', '$env/',
+  '@types/', '@standard-schema/',
+  // these are type-only at runtime or bundled
+  'esm-env',
+];
+// SvelteKit internal virtual modules
+const SKIP_EXACT = new Set(['types', '@sveltejs/kit', 'esm-env', '@standard-schema/spec']);
 
-const versions = {};
-for (const dep of SERVER_DEPS) {
-  const v = rootPkg.dependencies?.[dep] ?? rootPkg.devDependencies?.[dep];
-  if (!v) throw new Error(`Dependency "${dep}" not found in root package.json`);
-  versions[dep] = v;
+function isSkipped(id) {
+  if (SKIP_EXACT.has(id)) return true;
+  return SKIP_PREFIXES.some(p => id.startsWith(p));
 }
 
-// Ensure the target directory exists
-mkdirSync(buildDir, { recursive: true });
+function scanDir(dir) {
+  const results = new Set();
+  let entries;
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return results; }
 
-// Write a minimal package.json into server_modules/ for pnpm to install against
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      for (const r of scanDir(full)) results.add(r);
+    } else if (entry.name.endsWith('.js')) {
+      const src = readFileSync(full, 'utf8');
+      // Match: from "pkg" or from 'pkg'
+      const re = /from\s+["']([^"'.][^"']*?)["']/g;
+      let m;
+      while ((m = re.exec(src)) !== null) {
+        const id = m[1];
+        if (!isSkipped(id)) {
+          // Extract top-level package name (handle @scope/pkg)
+          const pkg = id.startsWith('@')
+            ? id.split('/').slice(0, 2).join('/')
+            : id.split('/')[0];
+          results.add(pkg);
+        }
+      }
+    }
+  }
+  return results;
+}
+
+const detected = [...scanDir(buildServer)].sort();
+console.log('[install-prod-deps] Detected server deps:', detected);
+
+// ---------------------------------------------------------------------------
+// Resolve versions from root package.json
+// ---------------------------------------------------------------------------
+
+const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const allDeps = { ...rootPkg.dependencies, ...rootPkg.devDependencies };
+
+const versions = {};
+const missing = [];
+for (const dep of detected) {
+  if (allDeps[dep]) {
+    versions[dep] = allDeps[dep];
+  } else {
+    missing.push(dep);
+  }
+}
+
+if (missing.length > 0) {
+  console.warn('[install-prod-deps] ⚠️  Packages not in package.json (will be skipped):', missing);
+}
+
+// ---------------------------------------------------------------------------
+// Install into server_modules/
+// ---------------------------------------------------------------------------
+
+mkdirSync(serverMod, { recursive: true });
+
 writeFileSync(pkgPath, JSON.stringify({
   name: 'tethr-server',
   version: '0.0.0',
@@ -45,18 +115,17 @@ writeFileSync(pkgPath, JSON.stringify({
   dependencies: versions,
 }, null, 2));
 
-// Use npm (not pnpm) so node_modules is a flat, copy-safe layout without symlinks.
-// pnpm uses a virtual store with symlinks that break when Tauri copies resources into the .app.
-console.log('[postbuild] Installing production deps into server_modules/ (via npm)...');
+// Use npm (not pnpm) — flat copy-safe layout without symlinks that break
+// when Tauri copies resources into the .app bundle.
+console.log('[install-prod-deps] Installing into server_modules/ (via npm)...');
 try {
   execSync('npm install --omit=dev --ignore-scripts', {
-    cwd: buildDir,
+    cwd: serverMod,
     stdio: 'inherit',
   });
 } finally {
-  // Remove the temporary package.json and lockfile (keep node_modules)
   rmSync(pkgPath, { force: true });
-  rmSync(join(buildDir, 'package-lock.json'), { force: true });
+  rmSync(join(serverMod, 'package-lock.json'), { force: true });
 }
 
-console.log('[postbuild] Production deps installed ✓');
+console.log('[install-prod-deps] Done ✓');

@@ -32,10 +32,8 @@ import { randomBytes }      from 'node:crypto';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root      = join(__dirname, '..');
 const binDir    = join(root, 'src-tauri', 'binaries', 'runtime');
-const buildDir  = join(root, 'build');
 
-mkdirSync(binDir,   { recursive: true });
-mkdirSync(buildDir, { recursive: true });
+mkdirSync(binDir, { recursive: true });
 
 // ---------------------------------------------------------------------------
 // Args
@@ -213,11 +211,6 @@ async function main() {
   // Write to src-tauri/binaries/js-runtime (no arch suffix)
   copyFileSync(finalBin, outPath);
   if (!isWin) chmodSync(outPath, 0o755);
-
-  // Also copy to build/ for dev server / smoke tests
-  const buildOut = join(buildDir, outName);
-  copyFileSync(finalBin, buildOut);
-  if (!isWin) chmodSync(buildOut, 0o755);
 
   const sizeMB = (statSync(outPath).size / 1024 / 1024).toFixed(0);
   console.log(`✅ js-runtime ready: ${outPath} (${sizeMB}MB)`);
