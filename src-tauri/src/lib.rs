@@ -60,21 +60,11 @@ pub fn run() {
                 // paths for chunk loading that fail if CWD is anything else.
                 let build_dir = resource_dir.join("build");
 
-                // On Windows, spawn via cmd /c to handle the extension-less PE binary
-                #[cfg(target_os = "windows")]
-                let mut cmd = {
-                    let mut c = std::process::Command::new("cmd");
-                    c.args(["/c", &bun_bin.to_string_lossy().to_string(), &index_js.to_string_lossy().to_string()]);
-                    c
-                };
-                #[cfg(not(target_os = "windows"))]
-                let mut cmd = {
-                    let mut c = std::process::Command::new(&bun_bin);
-                    c.arg(&index_js);
-                    c
-                };
-
-                let child = cmd
+                // std::process::Command::new() on Windows calls CreateProcess directly
+                // with the full absolute path — this works for PE binaries regardless
+                // of whether they have the .exe extension.
+                let child = std::process::Command::new(&bun_bin)
+                    .arg(&index_js)
                     .current_dir(&build_dir)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")
