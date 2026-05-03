@@ -40,16 +40,10 @@ pub fn run() {
                     .resource_dir()
                     .expect("could not resolve resource dir");
 
-                // js-runtime is placed by Tauri's externalBin alongside the main executable
-                // (Contents/MacOS/ on macOS, next to tethr.exe on Windows)
-                let exe_dir = std::env::current_exe()
-                    .expect("could not get current exe path")
-                    .parent()
-                    .expect("could not get exe dir")
-                    .to_path_buf();
-
+                // js-runtime is bundled via the Tauri resources map into Contents/Resources/
+                // (not Contents/MacOS/ — that's reserved for the main executable)
                 let bun_name = if cfg!(windows) { "js-runtime.exe" } else { "js-runtime" };
-                let bun_bin = exe_dir.join(bun_name);
+                let bun_bin = resource_dir.join(bun_name);
                 let index_js = resource_dir.join("build").join("index.js");
 
                 // Ensure the bun binary is executable (resources may lose +x on some platforms)

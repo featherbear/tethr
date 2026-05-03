@@ -24,12 +24,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "../src-tauri/binaries/js-runtime"
-    ],
     "resources": {
       "../build": "build",
-      "../server_modules/node_modules": "build/node_modules"
+      "../server_modules/node_modules": "build/node_modules",
+      "../src-tauri/binaries/js-runtime": "js-runtime"
     }
   }
 }
