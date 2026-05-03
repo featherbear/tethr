@@ -32,3 +32,29 @@ jobs:
 
       - name: Build SvelteKit output
         run: pnpm build
+
+      - name: Smoke test — production server must return HTTP 200
+        run: |
+          # Start the production server in background
+          NODE_ENV=production node build/index.js &
+          SERVER_PID=$!
+
+          # Wait up to 15s for it to respond
+          for i in $(seq 1 30); do
+            sleep 0.5
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ 2>/dev/null || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Server returned HTTP 200"
+              kill $SERVER_PID 2>/dev/null || true
+              exit 0
+            fi
+            if [ "$STATUS" != "" ] && [ "$STATUS" != "000" ]; then
+              echo "❌ Server returned HTTP $STATUS (expected 200)"
+              kill $SERVER_PID 2>/dev/null || true
+              exit 1
+            fi
+          done
+
+          echo "❌ Server did not respond within 15s"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1

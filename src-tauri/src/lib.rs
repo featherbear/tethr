@@ -58,8 +58,12 @@ pub fn run() {
 
                 // Spawn js-runtime via std::process::Command (not Tauri sidecar API)
                 // This avoids linuxdeploy trying to run ldd on the Bun binary.
+                // current_dir must be the build/ directory — index.js uses relative
+                // paths for chunk loading that fail if CWD is anything else.
+                let build_dir = resource_dir.join("build");
                 let child = std::process::Command::new(&bun_bin)
                     .arg(&index_js)
+                    .current_dir(&build_dir)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")
                     .env("NODE_ENV", "production")
