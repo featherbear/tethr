@@ -75,6 +75,16 @@ jobs:
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
+      - name: Verify resources exist before bundling
+        shell: bash
+        run: |
+          echo "=== Resource directories ==="
+          ls -la build/ | head -10
+          ls -la src-tauri/binaries/runtime/ || echo "❌ runtime/ missing!"
+          ls -la server_modules/node_modules/ | head -5 || echo "❌ server_modules/node_modules/ missing!"
+          echo "=== build/index.js ==="
+          ls -la build/index.js || echo "❌ build/index.js missing!"
+
       - name: Build
         shell: bash
         env:
@@ -88,6 +98,20 @@ jobs:
           ARGS="--bundles ${{ matrix.bundles }}"
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
           pnpm tauri build $ARGS
+
+      - name: Verify bundle size
+        shell: bash
+        run: |
+          # Warn if any platform artifact is suspiciously small (< 50MB = resources missing)
+          BUNDLE_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release/bundle"
+          find "$BUNDLE_DIR" -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.app" 2>/dev/null | while read f; do
+            SIZE=$(du -sm "$f" | cut -f1)
+            echo "Bundle: $f — ${SIZE}MB"
+            if [ "$SIZE" -lt 50 ]; then
+              echo "❌ Bundle is suspiciously small (${SIZE}MB < 50MB) — resources likely missing!"
+              exit 1
+            fi
+          done
 
       - name: Package artifact
         run: node scripts/package-artifact.mjs ${{ matrix.label }} ${{ github.ref_name }} ${{ matrix.rust-target }}

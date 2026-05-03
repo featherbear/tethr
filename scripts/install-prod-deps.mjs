@@ -118,14 +118,11 @@ writeFileSync(pkgPath, JSON.stringify({
 // Use npm (not pnpm) — flat copy-safe layout without symlinks that break
 // when Tauri copies resources into the .app bundle.
 console.log('[install-prod-deps] Installing into server_modules/ (via npm)...');
-try {
-  execSync('npm install --omit=dev --ignore-scripts', {
-    cwd: serverMod,
-    stdio: 'inherit',
-  });
-} finally {
-  rmSync(pkgPath, { force: true });
-  rmSync(join(serverMod, 'package-lock.json'), { force: true });
-}
+execSync('npm install --omit=dev --ignore-scripts', {
+  cwd: serverMod,
+  stdio: 'inherit',
+});
+rmSync(pkgPath, { force: true });
+rmSync(join(serverMod, 'package-lock.json'), { force: true });
 
 console.log('[install-prod-deps] Done ✓');
