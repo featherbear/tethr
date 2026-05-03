@@ -50,17 +50,6 @@ pub fn run() {
                 };
                 let index_js = resource_dir.join("build").join("index.js");
 
-                // Ensure the bun binary is executable (resources may lose +x on some platforms)
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let mut perms = std::fs::metadata(&bun_bin)
-                        .expect("js-runtime not found in resources")
-                        .permissions();
-                    perms.set_mode(0o755);
-                    std::fs::set_permissions(&bun_bin, perms).ok();
-                }
-
                 // Spawn js-runtime via std::process::Command (not Tauri sidecar API)
                 // This avoids linuxdeploy trying to run ldd on the Bun binary.
                 // current_dir must be the build/ directory — index.js uses relative
