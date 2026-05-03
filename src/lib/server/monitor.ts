@@ -307,6 +307,11 @@ async function runMonitoringLive(
     }
     return { result: 'clean' }; // signal aborted
   } catch (e) {
+    // If the outer signal fired, the stream termination is intentional — treat as clean abort
+    if (signal.aborted) {
+      log.debug('Monitoring stream aborted by signal (intentional)');
+      return { result: 'clean' };
+    }
     return { result: 'error', err: e };
   } finally {
     reader.releaseLock();
