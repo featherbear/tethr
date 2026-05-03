@@ -5,6 +5,7 @@
   "identifier": "cc.featherbear.tethr",
   "build": {
     "beforeDevCommand": "pnpm dev",
+    "beforeBundleCommand": "bash -c 'for f in src-tauri/target/{aarch64,x86_64,universal}-apple-darwin/release/tethr src-tauri/target/release/tethr; do [ -f \"$f\" ] && strip \"$f\"; done; true'",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../build"
   },
