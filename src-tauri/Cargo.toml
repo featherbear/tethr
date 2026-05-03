@@ -19,7 +19,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-ureq = "2"
 
 [profile.release]
 strip = true  # strip debug symbols

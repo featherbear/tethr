@@ -77,15 +77,15 @@ pub fn run() {
                 // Store the child so we can kill it when Tauri exits.
                 app.manage(ServerProcess(Mutex::new(child)));
 
-                // Poll until the SvelteKit server is ready (max ~10s)
-                let health_url = format!("{server_url}/");
+                // Poll until the SvelteKit server is ready (max ~10s).
+                // A successful TCP connect to the port means the server is up.
+                // No HTTP needed — avoids pulling in ureq + rustls + ring (~35MB).
+                let addr = format!("127.0.0.1:{port}");
                 let ready = (|| {
                     for _ in 0..40 {
                         std::thread::sleep(Duration::from_millis(250));
-                        if let Ok(resp) = ureq::get(&health_url).call() {
-                            if resp.status() < 500 {
-                                return true;
-                            }
+                        if std::net::TcpStream::connect(&addr).is_ok() {
+                            return true;
                         }
                     }
                     false
