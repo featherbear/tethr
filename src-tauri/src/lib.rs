@@ -26,7 +26,6 @@ fn find_free_port() -> u16 {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             #[cfg(debug_assertions)]
             let _app = app; // in dev, Vite handles the window
