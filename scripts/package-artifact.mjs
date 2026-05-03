@@ -8,7 +8,7 @@
 //   rust-target: e.g. aarch64-apple-darwin (optional, for cross-compiled macOS)
 
 import { execSync } from 'child_process';
-import { readdirSync, renameSync, statSync } from 'fs';
+import { readdirSync, renameSync, statSync, existsSync } from 'fs';
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { platform } from 'os';
@@ -52,14 +52,26 @@ if (os === 'darwin') {
     renameSync(join(debDir, deb), dest);
   }
 } else if (os === 'win32') {
-  // Windows: find the NSIS installer produced by Tauri and rename it
-  const nsisDir = join(bundleBase.replace('release\\bundle', 'release\\bundle'), '..', 'nsis');
-  const nsisAlt = join(root, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
-  const searchDir = nsisAlt;
-  const setupExe = readdirSync(searchDir).find(f => f.endsWith('.exe'));
-  if (!setupExe) throw new Error('No NSIS .exe found in ' + searchDir);
-  dest = join(root, `tethr-${tag}-${label}.exe`);
-  renameSync(join(searchDir, setupExe), dest);
+  // Windows: create a portable zip from the release directory contents.
+  // Tauri places the compiled binary + resources/ at target/release/.
+  // We zip: tethr.exe + resources/ into a self-contained portable archive.
+  const releaseDir = join(root, 'src-tauri', 'target', 'release');
+  const tethrExe   = join(releaseDir, 'tethr.exe');
+  const resourcesDir = join(releaseDir, 'resources');
+
+  if (!existsSync(tethrExe))    throw new Error(`tethr.exe not found at ${tethrExe}`);
+  if (!existsSync(resourcesDir)) throw new Error(`resources/ not found at ${resourcesDir}`);
+
+  dest = join(root, `tethr-${tag}-${label}.zip`);
+
+  // Use PowerShell to create the zip (available on all Windows CI runners)
+  execSync(
+    `powershell -Command "` +
+    `$files = @('${tethrExe.replace(/\\/g, '\\\\')}'); ` +
+    `Compress-Archive -Path '${tethrExe.replace(/\\/g, '\\\\')}','${resourcesDir.replace(/\\/g, '\\\\')}' ` +
+    `-DestinationPath '${dest.replace(/\\/g, '\\\\')}' -Force"`,
+    { stdio: 'inherit' }
+  );
 } else {
   console.error(`❌  Unsupported OS: ${os}`);
   process.exit(1);
