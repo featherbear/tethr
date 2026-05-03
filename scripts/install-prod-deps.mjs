@@ -19,11 +19,10 @@ const buildDir = join(root, 'server_modules');
 const pkgPath = join(buildDir, 'package.json');
 
 // Packages actually imported by server-side code at runtime:
-//   pino, pino-abstract-transport — logging
-//   pino-pretty                   — dev pretty-printing (small; harmless in prod bundle)
-//   undici                        — camera HTTP client (Agent for TLS bypass)
+//   pino    — structured JSON logging
+//   undici  — camera HTTP client (Agent for TLS bypass)
 // @tauri-apps/* are client-side only (bundled by Vite into the browser chunks).
-const SERVER_DEPS = ['pino', 'pino-abstract-transport', 'pino-pretty', 'undici'];
+const SERVER_DEPS = ['pino', 'undici'];
 
 const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
