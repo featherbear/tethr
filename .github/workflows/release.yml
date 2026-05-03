@@ -108,6 +108,19 @@ jobs:
           echo "=== Tauri build log (resource lines) ==="
           grep -i "resource\|copy\|bundle\|skip\|warn" /tmp/tauri-build.log || true
 
+          # For --no-bundle builds, Tauri doesn't copy resources — do it manually
+          if [ "${{ matrix.bundles }}" = "none" ]; then
+            TARGET_DIR="src-tauri/target/release"
+            echo "Copying resources manually for --no-bundle build..."
+            mkdir -p "$TARGET_DIR/resources/build"
+            mkdir -p "$TARGET_DIR/resources/runtime"
+            cp -r build/. "$TARGET_DIR/resources/build/"
+            cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
+            cp src-tauri/binaries/runtime/js-runtime "$TARGET_DIR/resources/runtime/js-runtime"
+            echo "=== resources/ after manual copy ==="
+            du -sh "$TARGET_DIR/resources/"*
+          fi
+
       - name: Inspect bundle contents
         shell: bash
         run: |
