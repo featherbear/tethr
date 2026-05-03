@@ -52,10 +52,10 @@ if (os === 'darwin') {
     renameSync(join(debDir, deb), dest);
   }
 } else if (os === 'win32') {
-  // Windows: create a self-extracting archive (SFX) using 7-Zip.
-  // The SFX exe extracts tethr.exe + resources/ to a temp dir and launches tethr.exe.
-  // No installation, no admin rights, no UAC prompt.
-  const releaseDir   = join(root, 'src-tauri', 'target', 'release');
+  // Windows: --no-bundle build — Tauri places tethr.exe + resources/ in target/release/.
+  // Create a self-extracting archive (SFX) using 7-Zip.
+  const targetSuffix = process.argv[4] ? process.argv[4] + '\\' : '';
+  const releaseDir   = join(root, 'src-tauri', 'target', targetSuffix + 'release');
   const tethrExe     = join(releaseDir, 'tethr.exe');
   const resourcesDir = join(releaseDir, 'resources');
 

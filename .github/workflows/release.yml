@@ -33,8 +33,8 @@ jobs:
           # fails on the statically-linked Bun binary. Node is dynamically linked so ldd
           # succeeds, sidestepping the crash.
           - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,     bundles: appimage, runtime: node }
-          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,       bundles: nsis,     runtime: bun  }
-          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,     bundles: nsis,     runtime: bun  }
+          - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,       bundles: none,     runtime: bun  }
+          - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,     bundles: none,     runtime: bun  }
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
@@ -98,7 +98,11 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: 1
         run: |
-          ARGS="--bundles ${{ matrix.bundles }}"
+          if [ "${{ matrix.bundles }}" = "none" ]; then
+            ARGS="--no-bundle"
+          else
+            ARGS="--bundles ${{ matrix.bundles }}"
+          fi
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
           pnpm tauri build $ARGS 2>&1 | tee /tmp/tauri-build.log | tail -50
           echo "=== Tauri build log (resource lines) ==="
@@ -117,16 +121,30 @@ jobs:
       - name: Verify bundle size
         shell: bash
         run: |
-          # Warn if any platform artifact is suspiciously small (< 50MB = resources missing)
-          BUNDLE_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release/bundle"
-          find "$BUNDLE_DIR" -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.app" 2>/dev/null | while read f; do
-            SIZE=$(du -sm "$f" | cut -f1)
-            echo "Bundle: $f — ${SIZE}MB"
-            if [ "$SIZE" -lt 50 ]; then
-              echo "❌ Bundle is suspiciously small (${SIZE}MB < 50MB) — resources likely missing!"
+          TARGET_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release"
+
+          if [ "${{ matrix.bundles }}" = "none" ]; then
+            # Windows --no-bundle: check resources/ dir is present and large enough
+            RESOURCES_DIR="$TARGET_DIR/resources"
+            SIZE=$(du -sm "$RESOURCES_DIR" 2>/dev/null | cut -f1 || echo 0)
+            echo "Resources dir: $RESOURCES_DIR — ${SIZE}MB"
+            if [ "${SIZE:-0}" -lt 50 ]; then
+              echo "❌ resources/ is suspiciously small (${SIZE}MB < 50MB) — runtime likely missing!"
               exit 1
             fi
-          done
+            echo "✅ resources/ size OK (${SIZE}MB)"
+          else
+            # Other platforms: check the bundle artifact size
+            find "$TARGET_DIR/bundle" -name "*.AppImage" -o -name "*.deb" -o -name "*.app" 2>/dev/null | while read f; do
+              SIZE=$(du -sm "$f" | cut -f1)
+              echo "Bundle: $f — ${SIZE}MB"
+              if [ "$SIZE" -lt 50 ]; then
+                echo "❌ Bundle is suspiciously small (${SIZE}MB < 50MB) — resources likely missing!"
+                exit 1
+              fi
+              echo "✅ Bundle size OK (${SIZE}MB)"
+            done
+          fi
 
       - name: Package artifact
         run: node scripts/package-artifact.mjs ${{ matrix.label }} ${{ github.ref_name }} ${{ matrix.rust-target }}
