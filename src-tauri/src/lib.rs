@@ -40,11 +40,14 @@ pub fn run() {
                     .resource_dir()
                     .expect("could not resolve resource dir");
 
-                // js-runtime is bundled via the Tauri resources map into Contents/Resources/
-                // (not Contents/MacOS/ — that's reserved for the main executable)
-                // js-runtime is bundled without .exe extension on all platforms
-                // (Tauri resources map uses a single 'js-runtime' entry)
-                let bun_bin = resource_dir.join("js-runtime");
+                // js-runtime is in Resources/runtime/ (a folder mapped via tauri.conf.json).
+                // Using a folder means a single resources entry covers all platforms,
+                // and Windows can keep the .exe extension.
+                let bun_bin = if cfg!(windows) {
+                    resource_dir.join("runtime").join("js-runtime.exe")
+                } else {
+                    resource_dir.join("runtime").join("js-runtime")
+                };
                 let index_js = resource_dir.join("build").join("index.js");
 
                 // Ensure the bun binary is executable (resources may lose +x on some platforms)

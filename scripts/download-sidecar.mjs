@@ -31,7 +31,7 @@ import { randomBytes }      from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root      = join(__dirname, '..');
-const binDir    = join(root, 'src-tauri', 'binaries');
+const binDir    = join(root, 'src-tauri', 'binaries', 'runtime');
 const buildDir  = join(root, 'build');
 
 mkdirSync(binDir,   { recursive: true });
@@ -44,10 +44,9 @@ mkdirSync(buildDir, { recursive: true });
 const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-// Always write the generic name WITHOUT .exe — tauri.conf.json resources map
-// uses 'binaries/js-runtime' on all platforms. Windows can execute a PE binary
-// via absolute path without the .exe extension when spawned from Rust.
-const outName = 'js-runtime';
+// Use .exe on Windows — binaries/runtime/ is mapped as a folder in tauri.conf.json
+// so Tauri copies whatever is inside without inspecting filenames.
+const outName = isWin ? 'js-runtime.exe' : 'js-runtime';
 const outPath = join(binDir, outName);
 
 console.log(`[download-sidecar] platform=${nodePlatform} arch=${nodeArch} runtime=${runtime}`);
@@ -209,8 +208,8 @@ async function main() {
   copyFileSync(finalBin, outPath);
   if (!isWin) chmodSync(outPath, 0o755);
 
-  // Also copy to build/ for dev server / smoke tests (always js-runtime, no .exe)
-  const buildOut = join(buildDir, 'js-runtime');
+  // Also copy to build/ for dev server / smoke tests
+  const buildOut = join(buildDir, outName);
   copyFileSync(finalBin, buildOut);
   if (!isWin) chmodSync(buildOut, 0o755);
 
