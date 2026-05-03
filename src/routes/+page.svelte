@@ -20,21 +20,30 @@
   let lightboxIndex = $state<number | null>(null);
   let liveSettings = $state<ShootingSettings | null>(null);
 
-  // Load persisted photos from IndexedDB, then enqueue thumbnail fetches.
-  // Each thumbnail fetch calls scheduleIdlePrefetch() on completion — no need
-  // to call it here (thumbnails haven't loaded yet at this point).
+  // Load persisted photos from IndexedDB, then enqueue image fetches.
+  // For each restored photo, check the Cache API first:
+  //   - HD cached   → enqueue full directly (cache hit is instant, skip thumbnail wait)
+  //   - Thumb cached → enqueue thumbnail (idle prefetch handles HD later)
+  //   - Neither      → enqueue thumbnail (will be fetched from camera)
   if (browser) {
-    photosStore.init().then(() => {
+    photosStore.init().then(async () => {
       for (const photo of photosStore.photos) {
-        if (!photo.thumbnailUrl) {
-          // Pick the JPG variant for thumbnail, fall back to RAW
+        const hasFull  = !!(await getCachedBlob(fullCacheKey(photo.id)));
+        const hasThumb = !hasFull && !!(await getCachedBlob(thumbCacheKey(photo.id)));
+
+        if (hasFull) {
+          // HD already cached — load it directly, no thumbnail needed
+          enqueueFull(photo.id, P.FullIdle);
+        } else {
+          // Load thumbnail (from cache or camera); idle prefetch handles HD later
           const filename = photo.variants.find(v => /\.jpe?g$/i.test(v)) ?? photo.variants[0];
           if (filename) enqueueThumbnail(photo.id, photo.dirname, filename);
         }
       }
-      // Schedule idle prefetch after a short delay to allow cache hits to populate thumbnailUrl
-      // before runIdlePrefetch checks for p.thumbnailUrl
-      idlePrefetchTimer = setTimeout(runIdlePrefetch, 1_000);
+      // If any photos had only thumbnails, schedule idle prefetch for their HD images
+      if (photosStore.photos.some(p => !p.fullUrl)) {
+        idlePrefetchTimer = setTimeout(runIdlePrefetch, 1_000);
+      }
     });
   }
 
@@ -145,6 +154,7 @@
     } catch (e) {
       log.warn({ err: e }, 'Failed to load initial state');
     }
+
   }
 
   // ---------------------------------------------------------------------------
