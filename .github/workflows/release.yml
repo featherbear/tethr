@@ -28,7 +28,7 @@ jobs:
         include:
           - { platform: macos-latest,     label: macos-universal, rust-target: universal-apple-darwin, rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin', node-platform: darwin, node-arch: universal, bundles: app,      runtime: bun  }
           - { platform: ubuntu-22.04,     label: linux-x86_64,    rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: x64,       bundles: appimage, runtime: bun  }
-          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,     bundles: deb,      runtime: bun  }
+          - { platform: ubuntu-24.04-arm, label: linux-arm64,     rust-target: '',                    rust-targets: '',                                                node-platform: linux,  node-arch: arm64,     bundles: appimage, runtime: bun  }
           - { platform: windows-latest,   label: windows-x86_64,  rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: x64,       bundles: nsis,     runtime: bun  }
           - { platform: windows-11-arm,   label: windows-arm64,   rust-target: '',                    rust-targets: '',                                                node-platform: win,    node-arch: arm64,     bundles: nsis,     runtime: bun  }
 
@@ -80,6 +80,9 @@ jobs:
           #   skip it for safety on all Linux jobs (no-op on Windows/macOS jobs)
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: 1
+          # DISABLE_COPYRIGHT_FILES_DEPLOYMENT: skip gtk plugin's ldd scan which crashes
+          # on arm64 when encountering Bun's statically-linked binary
+          DISABLE_COPYRIGHT_FILES_DEPLOYMENT: 1
         run: |
           ARGS="--bundles ${{ matrix.bundles }}"
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
