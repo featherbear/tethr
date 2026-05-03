@@ -141,6 +141,12 @@
 - **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
 - **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
 
+### macOS TCC "Downloads folder" prompt from inherited CWD
+- **Symptom:** `"tethr" would like to access files in your Downloads folder` — appears when launching the .app from ~/Downloads/. If denied, the window shows a white screen.
+- **Root cause:** The Tauri process inherits CWD from the launch location. Any relative path access (ureq health check, temp files) resolves relative to CWD (~/Downloads/), triggering macOS TCC.
+- **Fix:** Call `std::env::set_current_dir(&resource_dir).ok()` immediately after resolving `resource_dir` in `setup()`. This moves the process CWD safely inside the .app bundle.
+- **Prevention:** Always set CWD explicitly in Tauri apps. Never rely on the inherited CWD being a safe location.
+
 ### Tauri sidecar must set current_dir to build/ directory
 - **Symptom:** Tauri app starts, server spawns, but GET / returns 500. Server starts fine when run directly from the terminal.
 - **Root cause:** std::process::Command inherits the app launcher's CWD (usually / or MacOS/). SvelteKit adapter-node output (index.js) loads chunks via relative paths — these fail when CWD isn't the build/ directory.
