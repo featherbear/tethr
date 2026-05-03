@@ -72,35 +72,15 @@ jobs:
       - name: Build SvelteKit
         run: pnpm build
 
-      - name: Debug postbuild output
-        shell: bash
-        run: |
-          echo "=== server_modules contents ==="
-          ls -la server_modules/ || echo "server_modules/ does not exist"
-          ls -la server_modules/node_modules/ 2>/dev/null | head -10 || echo "server_modules/node_modules/ does not exist"
-
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
-      - name: Stage runtime binary into build/
+      - name: Stage runtime into build/
         shell: bash
         run: |
-          # Copy js-runtime into build/runtime/ so Tauri's "../build" resource
-          # map includes it automatically — avoids cross-platform tauri.conf.json issues.
           mkdir -p build/runtime
           RUNTIME_SRC=$(ls src-tauri/binaries/runtime/)
           cp "src-tauri/binaries/runtime/$RUNTIME_SRC" "build/runtime/$RUNTIME_SRC"
-          echo "Staged: build/runtime/$RUNTIME_SRC"
-
-      - name: Verify resources exist before bundling
-        shell: bash
-        run: |
-          echo "=== Resource directories ==="
-          ls -la build/ | head -10
-          ls -la src-tauri/binaries/runtime/ || { echo "❌ runtime/ missing!"; exit 1; }
-          ls -la server_modules/node_modules/ | head -5 || { echo "❌ server_modules/node_modules/ missing!"; exit 1; }
-          echo "=== build/index.js ==="
-          ls -la build/index.js || { echo "❌ build/index.js missing!"; exit 1; }
 
       - name: Build
         shell: bash
@@ -114,58 +94,14 @@ jobs:
             ARGS="--bundles ${{ matrix.bundles }}"
           fi
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
-          pnpm tauri build $ARGS 2>&1 | tee /tmp/tauri-build.log | tail -50
-          echo "=== Tauri build log (resource lines) ==="
-          grep -i "resource\|copy\|bundle\|skip\|warn" /tmp/tauri-build.log || true
+          pnpm tauri build $ARGS
 
-          # Windows --no-bundle: Tauri doesn't copy resources, do it manually.
-          # macOS/Linux: Tauri already handles resources via the resources map
-          # (build/ includes runtime/ since we staged it there before bundling).
+          # Windows --no-bundle: Tauri doesn't copy resources — do it manually
           if [ "${{ matrix.bundles }}" = "none" ]; then
             TARGET_DIR="src-tauri/target/release"
             mkdir -p "$TARGET_DIR/resources/build"
             cp -r build/. "$TARGET_DIR/resources/build/"
             cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
-            echo "=== Windows resources/build/runtime/ ==="
-            ls -lh "$TARGET_DIR/resources/build/runtime/" || echo "runtime/ missing!"
-          fi
-
-      - name: Inspect bundle contents
-        shell: bash
-        run: |
-          echo "=== src-tauri/target/release/ top-level ==="
-          ls -la src-tauri/target/release/*.exe 2>/dev/null || ls -la src-tauri/target/release/tethr 2>/dev/null || echo "no main binary found"
-          echo "=== src-tauri/target/release/resources/ ==="
-          find src-tauri/target/release/resources/ -maxdepth 3 2>/dev/null | head -30 || echo "no resources dir"
-          echo "=== bundle dir ==="
-          find src-tauri/target/release/bundle/ -maxdepth 3 2>/dev/null | head -20 || true
-
-      - name: Verify bundle size
-        shell: bash
-        run: |
-          TARGET_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release"
-
-          if [ "${{ matrix.bundles }}" = "none" ]; then
-            # Windows --no-bundle: check resources/ dir is present and large enough
-            RESOURCES_DIR="$TARGET_DIR/resources"
-            SIZE=$(du -sm "$RESOURCES_DIR" 2>/dev/null | cut -f1 || echo 0)
-            echo "Resources dir: $RESOURCES_DIR — ${SIZE}MB"
-            if [ "${SIZE:-0}" -lt 50 ]; then
-              echo "❌ resources/ is suspiciously small (${SIZE}MB < 50MB) — runtime likely missing!"
-              exit 1
-            fi
-            echo "✅ resources/ size OK (${SIZE}MB)"
-          else
-            # Other platforms: check the bundle artifact size
-            find "$TARGET_DIR/bundle" -name "*.AppImage" -o -name "*.deb" -o -name "*.app" 2>/dev/null | while read f; do
-              SIZE=$(du -sm "$f" | cut -f1)
-              echo "Bundle: $f — ${SIZE}MB"
-              if [ "$SIZE" -lt 50 ]; then
-                echo "❌ Bundle is suspiciously small (${SIZE}MB < 50MB) — resources likely missing!"
-                exit 1
-              fi
-              echo "✅ Bundle size OK (${SIZE}MB)"
-            done
           fi
 
       - name: Package artifact
