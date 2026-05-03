@@ -8,6 +8,7 @@
   import StatusBar from '$lib/components/StatusBar.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
+  import ConfirmClearModal from '$lib/components/ConfirmClearModal.svelte';
   import Lightbox from '$lib/components/Lightbox.svelte';
   import { childLog } from '$lib/logger';
 
@@ -15,8 +16,12 @@
 
   let eventSource: EventSource | null = null;
   let showSettings = $state(false);
+  let showClear = $state(false);
   let lightboxIndex = $state<number | null>(null);
   let liveSettings = $state<ShootingSettings | null>(null);
+
+  // Load persisted photos from IndexedDB on first browser render
+  if (browser) photosStore.init();
 
   // ---------------------------------------------------------------------------
   // Single global serial camera fetch queue — CCAPI is single-threaded,
@@ -362,7 +367,8 @@
     shotCount={photosStore.photos.length}
     cameraInfo={cameraInfoStore.info}
     shootingSettings={liveSettings}
-    onsettings={() => (showSettings = true)}
+    onconnection={() => (showSettings = true)}
+    onclear={() => (showClear = true)}
   />
   <main class="content">
     <PhotoGrid photos={photosStore.photos} onopen={(i) => {
@@ -376,6 +382,18 @@
 
 {#if showSettings}
   <SettingsModal onclose={() => (showSettings = false)} />
+{/if}
+
+{#if showClear}
+  <ConfirmClearModal
+    photoCount={photosStore.photos.length}
+    oncancel={() => (showClear = false)}
+    onconfirm={async () => {
+      showClear = false;
+      lightboxIndex = null;
+      await photosStore.clearAll();
+    }}
+  />
 {/if}
 
 {#if lightboxIndex !== null}

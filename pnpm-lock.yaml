@@ -23,6 +23,9 @@ importers:
       undici:
         specifier: ^8.1.0
         version: 8.1.0
+      uuidv7:
+        specifier: ^1.2.1
+        version: 1.2.1
     devDependencies:
       '@jimp/plugin-print':
         specifier: ^1.6.1
@@ -1154,6 +1157,10 @@ packages:
 
   utif2@4.1.0:
     resolution: {integrity: sha512-+oknB9FHrJ7oW7A2WZYajOcv4FcDR4CfoGB0dPNfxbi4GO05RRnFmt5oa23+9w32EanrYcSJWspUiJkLMs+37w==, tarball: https://packages.atlassian.com/api/npm/npm-remote/utif2/-/utif2-4.1.0.tgz}
+
+  uuidv7@1.2.1:
+    resolution: {integrity: sha512-4kPkK3/XTQW9Hbm4CaqfICn+kY9LJtDVEOfgsRRra/+n2Ofg4NqzRFceAkxvQ/Ud/6BpHOPzj8cirqM7TzTN5Q==, tarball: https://packages.atlassian.com/api/npm/npm-remote/uuidv7/-/uuidv7-1.2.1.tgz}
+    hasBin: true
 
   vite@6.4.2:
     resolution: {integrity: sha512-2N/55r4JDJ4gdrCvGgINMy+HH3iRpNIz8K6SFwVsA+JbQScLiC+clmAxBgwiSPgcG9U15QmvqCGWzMbqda5zGQ==, tarball: https://packages.atlassian.com/api/npm/npm-remote/vite/-/vite-6.4.2.tgz}
@@ -2301,6 +2308,8 @@ snapshots:
   utif2@4.1.0:
     dependencies:
       pako: 1.0.11
+
+  uuidv7@1.2.1: {}
 
   vite@6.4.2(@types/node@25.6.0):
     dependencies:

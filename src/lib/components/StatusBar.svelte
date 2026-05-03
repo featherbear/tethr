@@ -3,6 +3,7 @@
   import type { CameraInfo } from '$lib/stores/cameraInfo.svelte';
   import type { ShootingSettings } from '$lib/stores/photos.svelte';
   import { formatExposure } from '$lib/formatters';
+  import ConfigMenu from './ConfigMenu.svelte';
 
   interface Props {
     status: ConnectionStatus;
@@ -10,10 +11,11 @@
     shotCount?: number;
     cameraInfo?: CameraInfo | null;
     shootingSettings?: ShootingSettings | null;
-    onsettings?: () => void;
+    onconnection?: () => void;
+    onclear?: () => void;
   }
 
-  const { status, errorMessage = null, shotCount = 0, cameraInfo = null, shootingSettings = null, onsettings }: Props = $props();
+  const { status, errorMessage = null, shotCount = 0, cameraInfo = null, shootingSettings = null, onconnection, onclear }: Props = $props();
 
   const DRIVE_LABELS: Record<string, string> = {
     cont_super_hi: 'BURST HI+',
@@ -164,13 +166,7 @@
         </svg>
       {/if}
     </button>
-    <button class="icon-btn" onclick={onsettings} title="Camera connection" aria-label="Camera connection">
-      <!-- Lucide "link" icon (16px grid) -->
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    <ConfigMenu onconnection={onconnection} onclear={onclear} />
   </div>
 </div>
 

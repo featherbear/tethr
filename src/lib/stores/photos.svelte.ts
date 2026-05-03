@@ -1,3 +1,7 @@
+import { browser } from '$app/environment';
+import { uuidv7 } from 'uuidv7';
+import { dbClearAll, dbFindByStemKey, dbLoadAll, dbUpsert, toPersistedPhoto } from './db';
+
 export type PhotoState = 'loading' | 'thumbnail' | 'display' | 'fullres';
 
 export interface ShootingSettings {
@@ -27,7 +31,12 @@ function ext(filename: string): string {
 }
 
 export interface Photo {
-  /** Canonical ID — dirname/stem (without extension) so RAW+JPG share one card */
+  /**
+   * Stable unique ID — UUIDv7 (time-ordered).
+   * Generated once when the shot first arrives; persisted across sessions.
+   * NOTE: unlike the old "dirname/stem" ID, this never changes and is safe
+   * to use as a React/Svelte key even when RAW+JPG variants merge.
+   */
   id: string;
   dirname: string;
   /** Display filename — prefer JPG; falls back to whatever arrived first */
@@ -35,9 +44,9 @@ export interface Photo {
   /** All filenames for this shot (e.g. ["IMG_0001.JPG", "IMG_0001.CR3"]) */
   variants: string[];
   hasRaw: boolean;
-  thumbnailUrl: string | null;
-  displayUrl: string | null;   // 1620×1080 display-quality JPEG (?kind=display)
-  fullresUrl: string | null;
+  thumbnailUrl: string | null;   // blob URL — tab-scoped, not persisted
+  displayUrl: string | null;     // blob URL — tab-scoped, not persisted
+  fullresUrl: string | null;     // blob URL — tab-scoped, not persisted
   displayProgress: number | null; // 0–100 during fetch, null when idle
   state: PhotoState;
   capturedAt: Date;
@@ -49,34 +58,71 @@ export const photosStore = (() => {
   let photos = $state<Photo[]>([]);
 
   /**
+   * stemKey: the deduplication key used to find RAW+JPG pairs.
+   * Separate from photo.id (which is UUIDv7) — stored in IndexedDB for lookup.
+   */
+  const stemKeyMap = new Map<string, string>(); // stemKey → UUIDv7 id
+
+  /** Load persisted photos from IndexedDB on first browser render */
+  async function init() {
+    if (!browser) return;
+    try {
+      const persisted = await dbLoadAll();
+      const loaded: Photo[] = persisted.map(p => ({
+        id:              p.id,
+        dirname:         p.dirname,
+        filename:        p.filename,
+        variants:        p.variants,
+        hasRaw:          p.hasRaw,
+        thumbnailUrl:    null,   // blob URLs don't survive page reload
+        displayUrl:      null,
+        fullresUrl:      null,
+        displayProgress: null,   // reset so idle prefetch re-triggers
+        state:           'loading',
+        capturedAt:      new Date(p.capturedAt),
+        settings:        p.settings,
+      }));
+      // Rebuild stemKey lookup from persisted records
+      for (const p of persisted) stemKeyMap.set(p.stemKey, p.id);
+      photos = loaded;
+    } catch (e) {
+      console.warn('[photos] Failed to load from IndexedDB:', e);
+    }
+  }
+
+  /**
    * Add or update a photo card for the given dirname/filename.
    * If a card with the same stem already exists, add the filename as a variant.
-   * Returns the card ID (dirname/stem).
+   * Returns the card's UUIDv7 id.
    */
   function addOrMerge(dirname: string, filename: string, settings: ShootingSettings | null = null): string {
-    const cardId = `${dirname}/${stem(filename)}`;
-    const existing = photos.find(p => p.id === cardId);
+    const key = `${dirname}/${stem(filename)}`;
+    const existingId = stemKeyMap.get(key);
 
-    if (existing) {
-      // Already have a card — add this variant if not already tracked
-      if (!existing.variants.includes(filename)) {
+    if (existingId) {
+      const existing = photos.find(p => p.id === existingId);
+      if (existing && !existing.variants.includes(filename)) {
         const isJpg = !RAW_EXTS.has(ext(filename));
-        photos = photos.map(p => p.id !== cardId ? p : {
-          ...p,
-          variants: [...p.variants, filename],
-          // Prefer JPG as display filename
-          filename: isJpg ? filename : p.filename,
-          hasRaw: p.hasRaw || RAW_EXTS.has(ext(filename)),
-          // Keep settings from first arrival
-          settings: p.settings ?? settings,
-        });
+        const updated: Photo = {
+          ...existing,
+          variants: [...existing.variants, filename],
+          filename: isJpg ? filename : existing.filename,
+          hasRaw: existing.hasRaw || RAW_EXTS.has(ext(filename)),
+          settings: existing.settings ?? settings,
+        };
+        photos = photos.map(p => p.id !== existingId ? p : updated);
+        // Persist the merged record
+        if (browser) dbUpsert(toPersistedPhoto(updated, key)).catch(console.warn);
       }
-      return cardId;
+      return existingId;
     }
 
-    // New card
-    photos = [{
-      id: cardId,
+    // New shot — generate a UUIDv7 id
+    const id = uuidv7();
+    stemKeyMap.set(key, id);
+
+    const photo: Photo = {
+      id,
       dirname,
       filename,
       variants: [filename],
@@ -88,9 +134,14 @@ export const photosStore = (() => {
       state: 'loading',
       capturedAt: new Date(),
       settings,
-    }, ...photos];
+    };
 
-    return cardId;
+    photos = [photo, ...photos];
+
+    // Persist asynchronously
+    if (browser) dbUpsert(toPersistedPhoto(photo, key)).catch(console.warn);
+
+    return id;
   }
 
   function setThumbnail(id: string, url: string) {
@@ -119,13 +170,24 @@ export const photosStore = (() => {
 
   function clear() { photos = []; }
 
+  /** Clear all photos from memory and IndexedDB */
+  async function clearAll() {
+    photos = [];
+    stemKeyMap.clear();
+    if (browser) {
+      try { await dbClearAll(); } catch (e) { console.warn('[photos] clearAll DB error:', e); }
+    }
+  }
+
   return {
     get photos() { return photos; },
+    init,
     addOrMerge,
     setThumbnail,
     setDisplay,
     setDisplayProgress,
     setFullres,
     clear,
+    clearAll,
   };
 })();

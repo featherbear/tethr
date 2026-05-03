@@ -24,7 +24,8 @@
     "@tauri-apps/plugin-opener": "^2",
     "pino": "^10.3.1",
     "pino-abstract-transport": "^3.0.0",
-    "undici": "^8.1.0"
+    "undici": "^8.1.0",
+    "uuidv7": "^1.2.1"
   },
   "devDependencies": {
     "@jimp/plugin-print": "^1.6.1",
