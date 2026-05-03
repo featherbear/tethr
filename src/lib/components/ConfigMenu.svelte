@@ -70,8 +70,14 @@
 <style>
   .config-menu-wrap {
     position: relative;
+    /* display: contents would remove the positioning context needed for the dropdown.
+       Instead keep it as a flex item but ensure it has no extra size. */
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+    line-height: 0;
+    padding: 0;
+    margin: 0;
   }
 
   /* Match StatusBar .icon-btn exactly */
