@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "node scripts/set-version.mjs && vite build",
-    "postbuild": "node scripts/install-prod-deps.mjs",
+    "postbuild": "node scripts/install-prod-deps.mjs && node scripts/clean-build.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
