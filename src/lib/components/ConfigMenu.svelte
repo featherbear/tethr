@@ -74,28 +74,25 @@
     align-items: center;
   }
 
-  /* Inherit icon-btn from StatusBar's global-ish style via parent */
+  /* Match StatusBar .icon-btn exactly */
   .icon-btn {
+    background: none;
+    border: none;
+    color: #4b5563;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: transparent;
-    color: #9ca3af;
     cursor: pointer;
-    padding: 0.25rem;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    border-radius: 5px;
+    transition: color 0.15s, background 0.15s;
+    padding: 0;
+    flex-shrink: 0;
   }
-  .icon-btn svg { width: 1rem; height: 1rem; }
-  .icon-btn:hover { background: rgba(255,255,255,0.06); color: #e5e7eb; }
-  .icon-btn.active {
-    background: rgba(var(--accent-rgb), 0.12);
-    border-color: rgba(var(--accent-rgb), 0.4);
-    color: var(--accent-light);
-  }
+  .icon-btn svg { width: 14px; height: 14px; }
+  .icon-btn:hover { color: #9ca3af; background: #1a1a1a; }
+  .icon-btn.active { color: #9ca3af; background: #1a1a1a; }
 
   .backdrop {
     position: fixed;
