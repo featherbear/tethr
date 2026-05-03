@@ -8,7 +8,7 @@
 //   rust-target: e.g. aarch64-apple-darwin (optional, for cross-compiled macOS)
 
 import { execSync } from 'child_process';
-import { readdirSync, renameSync, statSync, existsSync, writeFileSync } from 'fs';
+import { readdirSync, renameSync, statSync, existsSync } from 'fs';
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { platform } from 'os';
@@ -65,39 +65,12 @@ if (os === 'darwin') {
   if (!existsSync(tethrExe))     throw new Error(`tethr.exe not found at ${tethrExe}`);
   if (!existsSync(resourcesDir)) throw new Error(`resources/ not found at ${resourcesDir}`);
 
-  const tmpDir    = join(root, 'tmp-sfx');
-  const archivePath = join(tmpDir, 'tethr.7z');
-  const configPath  = join(tmpDir, 'sfx-config.txt');
-  const sfxStub     = 'C:\\Program Files\\7-Zip\\7zSD.sfx';
-  dest = join(root, `tethr-${tag}-${label}.exe`);
+  dest = join(root, `tethr-${tag}-${label}.zip`);
 
-  // Create temp working dir
-  execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${tmpDir}'"`, { stdio: 'pipe' });
-
-  // SFX config — extracts to %TEMP%\tethr and runs tethr.exe
-  const sfxConfig = `;!@Install@!UTF-8!\nTitle="Tethr"\nRunProgram="tethr.exe"\n;!@InstallEnd@!`;
-  writeFileSync(configPath, sfxConfig, 'utf8');
-
-  // Create 7z archive of tethr.exe + resources/
+  // Portable zip — users extract and run tethr.exe directly, no installation needed.
+  // Use 7-Zip (available on all GitHub Windows runners) for better compression.
   const sevenZip = 'C:\\Program Files\\7-Zip\\7z.exe';
-  execSync(`"${sevenZip}" a -mx=5 "${archivePath}" "${tethrExe}" "${resourcesDir}"`, { stdio: 'inherit' });
-
-  // Concatenate SFX stub + config + archive → self-extracting exe
-  execSync(
-    `powershell -Command "` +
-    `$sfx = [System.IO.File]::ReadAllBytes('${sfxStub}'); ` +
-    `$cfg = [System.Text.Encoding]::UTF8.GetBytes([System.IO.File]::ReadAllText('${configPath}')); ` +
-    `$arc = [System.IO.File]::ReadAllBytes('${archivePath}'); ` +
-    `$out = New-Object System.IO.FileStream('${dest}', [System.IO.FileMode]::Create); ` +
-    `$out.Write($sfx, 0, $sfx.Length); ` +
-    `$out.Write($cfg, 0, $cfg.Length); ` +
-    `$out.Write($arc, 0, $arc.Length); ` +
-    `$out.Close()"`,
-    { stdio: 'inherit' }
-  );
-
-  // Cleanup temp dir
-  execSync(`powershell -Command "Remove-Item -Recurse -Force '${tmpDir}'"`, { stdio: 'pipe' });
+  execSync(`"${sevenZip}" a -mx=5 "${dest}" "${tethrExe}" "${resourcesDir}"`, { stdio: 'inherit' });
 } else {
   console.error(`❌  Unsupported OS: ${os}`);
   process.exit(1);
