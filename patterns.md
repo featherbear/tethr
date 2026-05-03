@@ -141,6 +141,12 @@
 - **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
 - **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
 
+### Tauri sidecar must set NODE_ENV=production explicitly
+- **Symptom:** Tauri app starts, terminal shows `500 GET /`, page never loads
+- **Root cause:** `std::process::Command` spawning the Node sidecar does not inherit `NODE_ENV`. Without it, `process.env.NODE_ENV` is `undefined`, so `isDev = true` in logger.ts — pino tries to load pino-pretty as a worker thread but it's a devDependency not present in the production bundle.
+- **Fix:** Add `.env("NODE_ENV", "production")` to the sidecar spawn in `lib.rs`.
+- **Prevention:** Always explicitly set `NODE_ENV` (and any other required env vars) in the Tauri sidecar spawn — it does not inherit the shell environment.
+
 ### ReadableStream throws TypeError: 'terminated' on AbortController abort — treat as clean
 - **Symptom:** `WARN monitor › Monitoring read error — back to verify errType=TypeError err="terminated"` after config change or HMR reload
 - **Root cause:** When the outer `AbortController` fires (e.g. `startMonitor()` called again), Node cancels the fetch body, causing `reader.read()` to throw `TypeError: terminated`. This is intentional cleanup, not a real error.
