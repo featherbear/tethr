@@ -329,21 +329,22 @@
 
     const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
     const cacheKey = fullCacheKey(id);
-    log.debug({ id, camPath, attempt }, 'Fetching display image');
+    log.debug({ id, camPath, attempt }, 'Full image: starting fetch');
     try {
       // Check cache first
       const cached = await getCachedBlob(cacheKey);
       if (cached) {
-        log.debug({ id }, 'Display from cache');
+        log.info({ id, bytes: cached.size }, 'Full image: cache hit ✓ (no network request)');
         const url = URL.createObjectURL(cached);
         photosStore.setFull(id, url);
         return;
       }
 
+      log.info({ id, camPath, attempt }, 'Full image: cache miss — fetching from camera');
       photosStore.setFullProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
       if (!res.ok || !res.body) {
-        log.warn({ id, camPath, status: res.status, attempt }, 'Display fetch failed');
+        log.warn({ id, camPath, status: res.status, attempt }, 'Full image: fetch failed');
         photosStore.setFullProgress(id, null);
         if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
           const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
@@ -354,9 +355,12 @@
       }
 
       const contentLength = Number(res.headers.get('Content-Length') ?? 0);
+      const sizeKb = contentLength ? `${Math.round(contentLength / 1024)}KB` : 'unknown size';
+      log.info({ id, camPath, sizeKb }, 'Full image: downloading…');
       const reader = res.body.getReader();
       const chunks: Uint8Array[] = [];
       let received = 0;
+      let lastLoggedPct = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -364,17 +368,23 @@
         chunks.push(value);
         received += value.length;
         if (contentLength > 0) {
-          photosStore.setFullProgress(id, Math.round((received / contentLength) * 100));
+          const pct = Math.round((received / contentLength) * 100);
+          photosStore.setFullProgress(id, pct);
+          // Log at 25% intervals
+          if (pct >= lastLoggedPct + 25) {
+            lastLoggedPct = Math.floor(pct / 25) * 25;
+            log.debug({ id, pct, receivedKb: Math.round(received / 1024), sizeKb }, `Full image: ${pct}%`);
+          }
         }
       }
 
       const blob = new Blob(chunks, { type: 'image/jpeg' });
-      setCachedBlob(cacheKey, blob); // fire-and-forget
+      setCachedBlob(cacheKey, blob); // fire-and-forget — stored for next session
       const url = URL.createObjectURL(blob);
       photosStore.setFull(id, url);
-      log.info({ id, camPath, bytes: received }, 'Display image loaded');
+      log.info({ id, camPath, bytes: received, kb: Math.round(received / 1024) }, 'Full image: loaded ✓ (cached for next session)');
     } catch (e) {
-      log.warn({ err: e, id, camPath }, 'Display fetch threw');
+      log.warn({ err: e, id, camPath }, 'Full image: fetch threw');
       photosStore.setFullProgress(id, null);
     }
   }
