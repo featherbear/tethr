@@ -141,6 +141,12 @@
 - **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
 - **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
 
+### Tauri sidecar must set current_dir to build/ directory
+- **Symptom:** Tauri app starts, server spawns, but GET / returns 500. Server starts fine when run directly from the terminal.
+- **Root cause:** std::process::Command inherits the app launcher's CWD (usually / or MacOS/). SvelteKit adapter-node output (index.js) loads chunks via relative paths — these fail when CWD isn't the build/ directory.
+- **Fix:** Add `.current_dir(resource_dir.join("build"))` to the Command builder in lib.rs.
+- **Prevention:** Always set current_dir explicitly when spawning a Node.js server as a sidecar. Never rely on CWD being correct.
+
 ### Tauri sidecar must set NODE_ENV=production explicitly
 - **Symptom:** Tauri app starts, terminal shows `500 GET /`, page never loads
 - **Root cause:** `std::process::Command` spawning the Node sidecar does not inherit `NODE_ENV`. Without it, `process.env.NODE_ENV` is `undefined`, so `isDev = true` in logger.ts — pino tries to load pino-pretty as a worker thread but it's a devDependency not present in the production bundle.
