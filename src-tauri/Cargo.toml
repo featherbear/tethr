@@ -25,3 +25,10 @@ serde_json = "1"
 tauri-plugin-shell = "2.3.5"
 ureq = "2"
 
+[profile.release]
+strip = true       # strip debug symbols — biggest size win
+opt-level = "z"    # optimise for size (vs "3" for speed)
+lto = true         # link-time optimisation — removes dead code across crates
+codegen-units = 1  # single codegen unit — better LTO, smaller binary
+panic = "abort"    # no unwinding machinery
+
