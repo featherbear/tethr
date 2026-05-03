@@ -48,9 +48,9 @@ pub fn run() {
                 // js-runtime is in Resources/runtime/ (a folder mapped via tauri.conf.json).
                 // Using a folder means a single resources entry covers all platforms,
                 // and Windows can keep the .exe extension.
-                // js-runtime has no .exe extension on all platforms — consistent naming
-                // across the resources folder map in tauri.conf.json.
-                // Windows can execute PE binaries via absolute path without .exe.
+                // js-runtime has no .exe extension — Tauri's NSIS bundler skips .exe
+                // files in resources. We invoke it via cmd /c on Windows so the OS
+                // can find and execute the PE binary without the extension.
                 let bun_bin = resource_dir.join("runtime").join("js-runtime");
                 let index_js = resource_dir.join("build").join("index.js");
 
@@ -59,8 +59,22 @@ pub fn run() {
                 // current_dir must be the build/ directory — index.js uses relative
                 // paths for chunk loading that fail if CWD is anything else.
                 let build_dir = resource_dir.join("build");
-                let child = std::process::Command::new(&bun_bin)
-                    .arg(&index_js)
+
+                // On Windows, spawn via cmd /c to handle the extension-less PE binary
+                #[cfg(target_os = "windows")]
+                let mut cmd = {
+                    let mut c = std::process::Command::new("cmd");
+                    c.args(["/c", &bun_bin.to_string_lossy().to_string(), &index_js.to_string_lossy().to_string()]);
+                    c
+                };
+                #[cfg(not(target_os = "windows"))]
+                let mut cmd = {
+                    let mut c = std::process::Command::new(&bun_bin);
+                    c.arg(&index_js);
+                    c
+                };
+
+                let child = cmd
                     .current_dir(&build_dir)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")

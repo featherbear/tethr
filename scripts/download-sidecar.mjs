@@ -42,8 +42,9 @@ mkdirSync(binDir, { recursive: true });
 const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-// Always use no extension — Tauri's resources folder map copies all files regardless
-// of name. Windows can execute PE binaries via absolute path without .exe extension.
+// Always write without .exe — Tauri's NSIS bundler skips .exe files in the
+// resources folder (treats them as installer executables requiring special handling).
+// Windows can execute PE binaries without .exe via cmd /c or by absolute path.
 const outName = 'js-runtime';
 const outPath = join(binDir, outName);
 

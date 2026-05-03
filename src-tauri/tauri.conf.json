@@ -27,7 +27,7 @@
     "resources": {
       "../build": "build",
       "../server_modules/node_modules": "build/node_modules",
-      "binaries/runtime": "runtime"
+      "binaries/runtime/js-runtime": "runtime/js-runtime"
     }
   }
 }
