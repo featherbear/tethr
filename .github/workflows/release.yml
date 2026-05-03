@@ -72,6 +72,13 @@ jobs:
       - name: Build SvelteKit
         run: pnpm build
 
+      - name: Debug postbuild output
+        shell: bash
+        run: |
+          echo "=== server_modules contents ==="
+          ls -la server_modules/ || echo "server_modules/ does not exist"
+          ls -la server_modules/node_modules/ 2>/dev/null | head -10 || echo "server_modules/node_modules/ does not exist"
+
       - name: Set up sidecar
         run: node scripts/download-sidecar.mjs ${{ matrix.node-platform }} ${{ matrix.node-arch }} ${{ matrix.runtime }}
 
@@ -80,10 +87,10 @@ jobs:
         run: |
           echo "=== Resource directories ==="
           ls -la build/ | head -10
-          ls -la src-tauri/binaries/runtime/ || echo "❌ runtime/ missing!"
-          ls -la server_modules/node_modules/ | head -5 || echo "❌ server_modules/node_modules/ missing!"
+          ls -la src-tauri/binaries/runtime/ || { echo "❌ runtime/ missing!"; exit 1; }
+          ls -la server_modules/node_modules/ | head -5 || { echo "❌ server_modules/node_modules/ missing!"; exit 1; }
           echo "=== build/index.js ==="
-          ls -la build/index.js || echo "❌ build/index.js missing!"
+          ls -la build/index.js || { echo "❌ build/index.js missing!"; exit 1; }
 
       - name: Build
         shell: bash
