@@ -9,10 +9,10 @@
     initialIndex: number;
     liveSettings?: ShootingSettings | null;
     onclose: () => void;
-    onfetchdisplay?: (id: string) => void;
+    onfetchfull?: (id: string) => void;
   }
 
-  const { photos, initialIndex, liveSettings = null, onclose, onfetchdisplay }: Props = $props();
+  const { photos, initialIndex, liveSettings = null, onclose, onfetchfull }: Props = $props();
 
   let latestMode = $state(false);
   let isFullscreen = $state(false);
@@ -48,13 +48,13 @@
   //      → onintroend: shownUrl = fadingUrl; fadingUrl = null
   //
   //   2. Same photo, display loads after thumbnail:
-  //      fadingUrl = displayUrl; shimmer = false
-  //      → onintroend: shownUrl = displayUrl; fadingUrl = null
+  //      fadingUrl = fullUrl; shimmer = false
+  //      → onintroend: shownUrl = fullUrl; fadingUrl = null
   // ---------------------------------------------------------------------------
   // shownUrl: the image currently visible (crossfade source/background)
   // Starts as best available for opening photo; updated via onintroend
   let shownUrl = $state<string | null>(
-    untrack(() => { const p = photos[initialIndex]; return p?.displayUrl ?? p?.thumbnailUrl ?? null; })
+    untrack(() => { const p = photos[initialIndex]; return p?.fullUrl ?? p?.thumbnailUrl ?? null; })
   );
 
   // shownPhoto: the photo whose details are shown in the info bar.
@@ -65,7 +65,7 @@
   // Track the display URL that was last confirmed visible so we can match it
   // to its owning photo when shownUrl updates.
   let shownDisplayUrl = $state<string | null>(
-    untrack(() => photos[initialIndex]?.displayUrl ?? null)
+    untrack(() => photos[initialIndex]?.fullUrl ?? null)
   );
 
   // Track processed photo id to detect photo changes
@@ -76,8 +76,8 @@
     if (!photo) return;
     const id = photo.id;
     if (id !== processedId) processedId = id;
-    if (!photo.displayUrl && photo.displayProgress === null) {
-      onfetchdisplay?.(id);
+    if (!photo.fullUrl && photo.fullProgress === null) {
+      onfetchfull?.(id);
     }
   });
 
@@ -86,7 +86,7 @@
   // ensuring the info bar only updates once the new image is actually on screen.
   $effect(() => {
     if (!shownDisplayUrl) return;
-    const match = photos.find(p => p.displayUrl === shownDisplayUrl);
+    const match = photos.find(p => p.fullUrl === shownDisplayUrl);
     if (match) shownPhoto = match;
   });
 
@@ -94,13 +94,13 @@
   // Derived directly from photo state — no mutable intermediary
   const targetUrl = $derived.by(() => {
     if (!photo) return null;
-    if (latestMode) return photo.displayUrl ?? null;
-    return photo.displayUrl ?? photo.thumbnailUrl ?? null;
+    if (latestMode) return photo.fullUrl ?? null;
+    return photo.fullUrl ?? photo.thumbnailUrl ?? null;
   });
 
   // Shimmer: show while display fetch is in progress and no display yet
   const shimmer = $derived(
-    photo !== null && photo.displayProgress !== null && photo.displayUrl === null
+    photo !== null && photo.fullProgress !== null && photo.fullUrl === null
   );
 
   const timeLabel = $derived(
@@ -148,11 +148,11 @@
     const newPhoto = photos[newIndex];
     if (!newPhoto) return;
     currentId = newPhoto.id;
-    onfetchdisplay?.(newPhoto.id);
+    onfetchfull?.(newPhoto.id);
     // On manual navigation, update details immediately — the user explicitly chose
     // this photo. Shimmer-only gating is only for automatic latest-mode updates.
     shownPhoto = newPhoto;
-    if (newPhoto.displayUrl) shownDisplayUrl = newPhoto.displayUrl;
+    if (newPhoto.fullUrl) shownDisplayUrl = newPhoto.fullUrl;
   }
 
   function prev() {
@@ -283,7 +283,7 @@
               shownUrl = targetUrl;
               // Only advance the info bar when the HD display image lands.
               // Setting shownDisplayUrl triggers the $effect that updates shownPhoto.
-              if (targetUrl && targetUrl === photo?.displayUrl) {
+              if (targetUrl && targetUrl === photo?.fullUrl) {
                 shownDisplayUrl = targetUrl;
               }
             }}

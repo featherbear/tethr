@@ -40,22 +40,22 @@
   // ---------------------------------------------------------------------------
   const P = {
     Thumbnail:      0,  // urgent — JPG thumbnail for new shot
-    DisplayUrgent:  1,  // urgent — display fetch when lightbox is open (latest shot)
+    FullUrgent:  1,  // urgent — display fetch when lightbox is open (latest shot)
     ThumbnailRaw:   2,  // urgent — RAW thumbnail (fallback if no JPG)
-    DisplayNow:     3,  // on-demand — lightbox open / navigate (non-latest)
-    DisplayIdle:    4,  // background — idle prefetch
+    FullNow:     3,  // on-demand — lightbox open / navigate (non-latest)
+    FullIdle:    4,  // background — idle prefetch
   } as const;
   type PValue = typeof P[keyof typeof P];
 
   type ThumbJob   = { type: 'thumb';   id: string; dirname: string; filename: string; priority: PValue; seq: number };
-  type DisplayJob = { type: 'display'; id: string; priority: PValue; seq: number };
-  type Job = ThumbJob | DisplayJob;
+  type FullJob = { type: 'full'; id: string; priority: PValue; seq: number };
+  type Job = ThumbJob | FullJob;
 
   const fetchQueue: Job[] = [];
   let fetchRunning = false;
   let jobSeq = 0; // monotonically increasing — newer jobs have higher seq
 
-  function enqueueJob(job: Omit<ThumbJob, 'seq'> | Omit<DisplayJob, 'seq'>) {
+  function enqueueJob(job: Omit<ThumbJob, 'seq'> | Omit<FullJob, 'seq'>) {
     const seq = ++jobSeq;
     // For thumbnail jobs: replace existing lower-priority job for same id
     if (job.type === 'thumb') {
@@ -68,12 +68,12 @@
     // For display jobs: skip if already loaded, in progress, or already queued
     if (job.type === 'display') {
       const photo = photosStore.photos.find(p => p.id === job.id);
-      if (!photo || photo.displayUrl) return;
+      if (!photo || photo.fullUrl) return;
       // Skip if already queued
-      if (fetchQueue.some(j => j.type === 'display' && j.id === job.id)) return;
-      // Skip if in-flight — abort resets displayProgress to null via catch block,
+      if (fetchQueue.some(j => j.type === 'full' && j.id === job.id)) return;
+      // Skip if in-flight — abort resets fullProgress to null via catch block,
       // so after abortCurrentDisplayFetch() this check passes correctly
-      if (photo.displayProgress !== null) return;
+      if (photo.fullProgress !== null) return;
     }
     fetchQueue.push({ ...job, seq } as Job);
     // Sort key: [photo recency DESC (lower index = newer), then thumb before display, then seq DESC]
@@ -85,10 +85,10 @@
     const typeOrder = (j: Job) => {
       // Within a photo: thumb before display; urgent display before raw thumb
       if (j.type === 'thumb' && j.priority === P.Thumbnail) return 0;
-      if (j.type === 'display' && j.priority === P.DisplayUrgent) return 1;
+      if (j.type === 'full' && j.priority === P.FullUrgent) return 1;
       if (j.type === 'thumb' && j.priority === P.ThumbnailRaw) return 2;
-      if (j.type === 'display' && j.priority === P.DisplayNow) return 3;
-      return 4; // DisplayIdle
+      if (j.type === 'full' && j.priority === P.FullNow) return 3;
+      return 4; // FullIdle
     };
     fetchQueue.sort((a, b) => {
       const pa = photoIndex(a), pb = photoIndex(b);
@@ -108,7 +108,7 @@
         if (job.priority === P.ThumbnailRaw && card?.thumbnailUrl) continue; // RAW skipped if JPG thumb loaded
         await fetchThumbnail(job.id, job.dirname, job.filename);
       } else {
-        await fetchDisplay(job.id);
+        await fetchFull(job.id);
       }
     }
     fetchRunning = false;
@@ -122,8 +122,8 @@
     enqueueJob({ type: 'thumb', id, dirname, filename, priority });
   }
 
-  function enqueueDisplay(id: string, priority: typeof P.DisplayUrgent | typeof P.DisplayNow | typeof P.DisplayIdle) {
-    enqueueJob({ type: 'display', id, priority });
+  function enqueueFull(id: string, priority: typeof P.FullUrgent | typeof P.FullNow | typeof P.FullIdle) {
+    enqueueJob({ type: 'full', id, priority });
   }
 
   // ---------------------------------------------------------------------------
@@ -197,18 +197,18 @@
       // Cancel idle prefetch timer and flush pending display jobs — camera is active
       if (idlePrefetchTimer) { clearTimeout(idlePrefetchTimer); idlePrefetchTimer = null; }
       for (let i = fetchQueue.length - 1; i >= 0; i--) {
-        if (fetchQueue[i].type === 'display') fetchQueue.splice(i, 1);
+        if (fetchQueue[i].type === 'full') fetchQueue.splice(i, 1);
       }
       // If lightbox is open, jump to new photo and fetch display at urgent priority
       // Demote any previously urgent display jobs — only the latest is urgent
       if (lightboxIndex !== null) {
         for (const job of fetchQueue) {
-          if (job.type === 'display' && job.priority === P.DisplayUrgent) {
-            job.priority = P.DisplayNow;
+          if (job.type === 'display' && job.priority === P.FullUrgent) {
+            job.priority = P.FullNow;
           }
         }
         lightboxIndex = 0;
-        enqueueDisplay(id, P.DisplayUrgent); // enqueueJob re-sorts
+        enqueueFull(id, P.FullUrgent); // enqueueJob re-sorts
       }
     });
 
@@ -296,7 +296,7 @@
       log.info({ id, camPath }, 'Thumbnail loaded');
       const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
       if (currentPhoto?.id === id) {
-        enqueueDisplay(id, P.DisplayUrgent);
+        enqueueFull(id, P.FullUrgent);
       } else {
         scheduleIdlePrefetch();
       }
@@ -310,9 +310,9 @@
 
   // Fetch display-quality image (~340KB JPG) with progress tracking.
   // Prefer JPG variant, fall back to CR3/CR2.
-  async function fetchDisplay(id: string, attempt = 0) {
+  async function fetchFull(id: string, attempt = 0) {
     const photo = photosStore.photos.find(p => p.id === id);
-    if (!photo || photo.displayUrl) return; // already fetched
+    if (!photo || photo.fullUrl) return; // already fetched
 
     // Prefer JPG variant, fall back to CR3/CR2 — camera serves display JPEG from RAW too
     const displayVariant = photo.variants.find(v => /\.jpe?g$/i.test(v))
@@ -320,7 +320,7 @@
     if (!displayVariant) return;
 
     const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
-    const cacheKey = `tethr-cache://display/${id}`;
+    const cacheKey = `tethr-cache://full/${id}`;
     log.debug({ id, camPath, attempt }, 'Fetching display image');
     try {
       // Check cache first
@@ -328,19 +328,19 @@
       if (cached) {
         log.debug({ id }, 'Display from cache');
         const url = URL.createObjectURL(cached);
-        photosStore.setDisplay(id, url);
+        photosStore.setFull(id, url);
         return;
       }
 
-      photosStore.setDisplayProgress(id, 0);
+      photosStore.setFullProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
       if (!res.ok || !res.body) {
         log.warn({ id, camPath, status: res.status, attempt }, 'Display fetch failed');
-        photosStore.setDisplayProgress(id, null);
+        photosStore.setFullProgress(id, null);
         if (attempt < DISPLAY_MAX_RETRIES && res.ok === false && (res.status === 503 || res.status === 502)) {
           const delay = DISPLAY_RETRY_DELAY_MS * (attempt + 1);
           await new Promise(r => setTimeout(r, delay));
-          enqueueJob({ type: 'display', id, priority: P.DisplayNow });
+          enqueueJob({ type: 'full', id, priority: P.FullNow });
         }
         return;
       }
@@ -356,18 +356,18 @@
         chunks.push(value);
         received += value.length;
         if (contentLength > 0) {
-          photosStore.setDisplayProgress(id, Math.round((received / contentLength) * 100));
+          photosStore.setFullProgress(id, Math.round((received / contentLength) * 100));
         }
       }
 
       const blob = new Blob(chunks, { type: 'image/jpeg' });
       setCachedBlob(cacheKey, blob); // fire-and-forget
       const url = URL.createObjectURL(blob);
-      photosStore.setDisplay(id, url);
+      photosStore.setFull(id, url);
       log.info({ id, camPath, bytes: received }, 'Display image loaded');
     } catch (e) {
       log.warn({ err: e, id, camPath }, 'Display fetch threw');
-      photosStore.setDisplayProgress(id, null);
+      photosStore.setFullProgress(id, null);
     }
   }
 
@@ -385,11 +385,11 @@
   function runIdlePrefetch() {
     // Enqueue display fetches for all thumbnail-only photos (newest first, lowest priority)
     const pending = photosStore.photos.filter(p =>
-      p.thumbnailUrl && !p.displayUrl && p.displayProgress === null &&
+      p.thumbnailUrl && !p.fullUrl && p.fullProgress === null &&
       p.variants.some(v => /\.(jpe?g|cr3|cr2)$/i.test(v))
     );
     for (const photo of pending) {
-      enqueueDisplay(photo.id, P.DisplayIdle);
+      enqueueFull(photo.id, P.FullIdle);
     }
   }
 
@@ -422,7 +422,7 @@
       lightboxIndex = i;
       const photo = photosStore.photos[i];
       // Urgent if newest photo (index 0), otherwise on-demand
-      if (photo) enqueueDisplay(photo.id, i === 0 ? P.DisplayUrgent : P.DisplayNow);
+      if (photo) enqueueFull(photo.id, i === 0 ? P.FullUrgent : P.FullNow);
     }} />
   </main>
 </div>
@@ -451,10 +451,10 @@
     initialIndex={lightboxIndex}
     liveSettings={liveSettings}
     onclose={() => (lightboxIndex = null)}
-    onfetchdisplay={(id) => {
+    onfetchfull={(id) => {
       // Urgent if showing latest photo (index 0), on-demand otherwise
       const i = photosStore.photos.findIndex(p => p.id === id);
-      enqueueDisplay(id, i === 0 ? P.DisplayUrgent : P.DisplayNow);
+      enqueueFull(id, i === 0 ? P.FullUrgent : P.FullNow);
     }}
   />
 {/if}

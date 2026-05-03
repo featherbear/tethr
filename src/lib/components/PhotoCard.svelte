@@ -36,16 +36,16 @@
       {#if photo.thumbnailUrl}
         <img
           class="img img--thumb"
-          class:img--hidden={!!(photo.displayUrl || photo.fullresUrl)}
+          class:img--hidden={!!(photo.fullUrl || photo.fullresUrl)}
           src={photo.thumbnailUrl}
           alt={photo.filename}
         />
       {/if}
       <!-- Display-quality image (fetched via /api/fullres?kind=display) -->
-      {#if photo.displayUrl && !photo.fullresUrl}
+      {#if photo.fullUrl && !photo.fullresUrl}
         <img
-          class="img img--display"
-          src={photo.displayUrl}
+          class="img img--full"
+          src={photo.fullUrl}
           alt={photo.filename}
         />
       {/if}
@@ -63,8 +63,8 @@
       {#if photo.state === 'loading'}
         <span class="badge__dot badge__dot--loading"></span> Loading…
       {:else if photo.state === 'thumbnail'}
-        {#if photo.displayProgress !== null}
-          <span class="badge__dot badge__dot--loading"></span> {photo.displayProgress}%
+        {#if photo.fullProgress !== null}
+          <span class="badge__dot badge__dot--loading"></span> {photo.fullProgress}%
         {:else}
           <span class="badge__dot badge__dot--thumb"></span> Preview
         {/if}

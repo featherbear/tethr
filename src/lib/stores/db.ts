@@ -19,7 +19,7 @@ export interface PersistedPhoto {
   filename: string;
   variants: string[];
   hasRaw: boolean;
-  state: 'loading' | 'thumbnail' | 'display' | 'fullres'; // stored but reset on load
+  state: 'loading' | 'thumbnail' | 'full' | 'fullres'; // stored but reset on load
   capturedAt: string;      // ISO string (Date isn't serialisable via structured clone in all envs)
   settings: ShootingSettings | null;
   /** Stem key used for RAW+JPG deduplication — dirname/stem(filename) */

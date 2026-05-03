@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import { uuidv7 } from 'uuidv7';
 import { dbClearAll, dbFindByStemKey, dbLoadAll, dbUpsert, toPersistedPhoto } from './db';
 
-export type PhotoState = 'loading' | 'thumbnail' | 'display' | 'fullres';
+export type PhotoState = 'loading' | 'thumbnail' | 'full' | 'fullres';
 
 export interface ShootingSettings {
   av:           string | null;  // aperture e.g. "f2.8"
@@ -45,9 +45,9 @@ export interface Photo {
   variants: string[];
   hasRaw: boolean;
   thumbnailUrl: string | null;   // blob URL — tab-scoped, not persisted
-  displayUrl: string | null;     // blob URL — tab-scoped, not persisted
+  fullUrl: string | null;     // blob URL — tab-scoped, not persisted
   fullresUrl: string | null;     // blob URL — tab-scoped, not persisted
-  displayProgress: number | null; // 0–100 during fetch, null when idle
+  fullProgress: number | null; // 0–100 during fetch, null when idle
   state: PhotoState;
   capturedAt: Date;
   /** Shooting settings at capture time — from monitoring stream */
@@ -75,9 +75,9 @@ export const photosStore = (() => {
         variants:        p.variants,
         hasRaw:          p.hasRaw,
         thumbnailUrl:    null,   // blob URLs don't survive page reload
-        displayUrl:      null,
+        fullUrl:      null,
         fullresUrl:      null,
-        displayProgress: null,   // reset so idle prefetch re-triggers
+        fullProgress: null,   // reset so idle prefetch re-triggers
         state:           'loading',
         capturedAt:      new Date(p.capturedAt),
         settings:        p.settings,
@@ -128,9 +128,9 @@ export const photosStore = (() => {
       variants: [filename],
       hasRaw: RAW_EXTS.has(ext(filename)),
       thumbnailUrl: null,
-      displayUrl: null,
+      fullUrl: null,
       fullresUrl: null,
-      displayProgress: null,
+      fullProgress: null,
       state: 'loading',
       capturedAt: new Date(),
       settings,
@@ -150,15 +150,15 @@ export const photosStore = (() => {
     );
   }
 
-  function setDisplay(id: string, url: string) {
+  function setFull(id: string, url: string) {
     photos = photos.map(p =>
-      p.id === id ? { ...p, displayUrl: url, displayProgress: null, state: 'display' } : p
+      p.id === id ? { ...p, fullUrl: url, fullProgress: null, state: 'full' } : p
     );
   }
 
-  function setDisplayProgress(id: string, progress: number | null) {
+  function setFullProgress(id: string, progress: number | null) {
     photos = photos.map(p =>
-      p.id === id ? { ...p, displayProgress: progress } : p
+      p.id === id ? { ...p, fullProgress: progress } : p
     );
   }
 
@@ -184,8 +184,8 @@ export const photosStore = (() => {
     init,
     addOrMerge,
     setThumbnail,
-    setDisplay,
-    setDisplayProgress,
+    setFull,
+    setFullProgress,
     setFullres,
     clear,
     clearAll,
