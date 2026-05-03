@@ -107,17 +107,21 @@ export async function dbClearAll(): Promise<void> {
   });
 }
 
-/** Convert a Photo to its persisted form */
+/** Convert a Photo to its persisted form.
+ *  Uses JSON round-trip to strip any Svelte $state Proxy wrappers, which
+ *  are not serialisable by the structured-clone algorithm used by IndexedDB.
+ */
 export function toPersistedPhoto(photo: Photo, stemKey: string): PersistedPhoto {
-  return {
+  const raw: PersistedPhoto = {
     id:         photo.id,
     dirname:    photo.dirname,
     filename:   photo.filename,
-    variants:   photo.variants,
+    variants:   [...photo.variants],    // plain array copy
     hasRaw:     photo.hasRaw,
     state:      photo.state,
     capturedAt: photo.capturedAt.toISOString(),
-    settings:   photo.settings,
+    settings:   photo.settings ? JSON.parse(JSON.stringify(photo.settings)) : null,
     stemKey,
   };
+  return raw;
 }
