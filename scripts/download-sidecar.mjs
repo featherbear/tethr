@@ -42,9 +42,9 @@ mkdirSync(binDir, { recursive: true });
 const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-// Use .exe on Windows — binaries/runtime/ is mapped as a folder in tauri.conf.json
-// so Tauri copies whatever is inside without inspecting filenames.
-const outName = isWin ? 'js-runtime.exe' : 'js-runtime';
+// Always use no extension — Tauri's resources folder map copies all files regardless
+// of name. Windows can execute PE binaries via absolute path without .exe extension.
+const outName = 'js-runtime';
 const outPath = join(binDir, outName);
 
 console.log(`[download-sidecar] platform=${nodePlatform} arch=${nodeArch} runtime=${runtime}`);
@@ -150,7 +150,6 @@ async function downloadBun(platform, arch) {
   const zipPath = tmpFile('.zip');
   await download(url, zipPath);
 
-  // Temp file uses .exe on Windows for correct PE extraction, but final output is always js-runtime
   const extractedPath = tmpFile(isWin ? '.exe' : '');
   await extractFromZip(zipPath, entry, extractedPath);
   if (!isWin) chmodSync(extractedPath, 0o755);

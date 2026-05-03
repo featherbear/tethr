@@ -48,11 +48,10 @@ pub fn run() {
                 // js-runtime is in Resources/runtime/ (a folder mapped via tauri.conf.json).
                 // Using a folder means a single resources entry covers all platforms,
                 // and Windows can keep the .exe extension.
-                let bun_bin = if cfg!(windows) {
-                    resource_dir.join("runtime").join("js-runtime.exe")
-                } else {
-                    resource_dir.join("runtime").join("js-runtime")
-                };
+                // js-runtime has no .exe extension on all platforms — consistent naming
+                // across the resources folder map in tauri.conf.json.
+                // Windows can execute PE binaries via absolute path without .exe.
+                let bun_bin = resource_dir.join("runtime").join("js-runtime");
                 let index_js = resource_dir.join("build").join("index.js");
 
                 // Spawn js-runtime via std::process::Command (not Tauri sidecar API)
