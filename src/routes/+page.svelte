@@ -66,7 +66,7 @@
       }
     }
     // For display jobs: skip if already loaded, in progress, or already queued
-    if (job.type === 'display') {
+    if (job.type === 'full') {
       const photo = photosStore.photos.find(p => p.id === job.id);
       if (!photo || photo.fullUrl) return;
       // Skip if already queued
@@ -203,7 +203,7 @@
       // Demote any previously urgent display jobs — only the latest is urgent
       if (lightboxIndex !== null) {
         for (const job of fetchQueue) {
-          if (job.type === 'display' && job.priority === P.FullUrgent) {
+          if (job.type === 'full' && job.priority === P.FullUrgent) {
             job.priority = P.FullNow;
           }
         }
