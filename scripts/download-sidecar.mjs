@@ -42,10 +42,7 @@ mkdirSync(binDir, { recursive: true });
 const [nodePlatform = 'darwin', nodeArch = 'arm64', runtime = 'bun'] = process.argv.slice(2);
 
 const isWin = nodePlatform === 'win';
-// Always write without .exe — Tauri's NSIS bundler skips .exe files in the
-// resources folder (treats them as installer executables requiring special handling).
-// Windows can execute PE binaries without .exe via cmd /c or by absolute path.
-const outName = 'js-runtime';
+const outName = isWin ? 'js-runtime.exe' : 'js-runtime';
 const outPath = join(binDir, outName);
 
 console.log(`[download-sidecar] platform=${nodePlatform} arch=${nodeArch} runtime=${runtime}`);

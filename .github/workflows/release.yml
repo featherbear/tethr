@@ -116,7 +116,7 @@ jobs:
             mkdir -p "$TARGET_DIR/resources/runtime"
             cp -r build/. "$TARGET_DIR/resources/build/"
             cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
-            cp src-tauri/binaries/runtime/js-runtime "$TARGET_DIR/resources/runtime/js-runtime"
+            cp src-tauri/binaries/runtime/js-runtime.exe "$TARGET_DIR/resources/runtime/js-runtime.exe"
             echo "=== resources/ after manual copy ==="
             du -sh "$TARGET_DIR/resources/"*
           fi
