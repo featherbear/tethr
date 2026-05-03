@@ -139,24 +139,22 @@
 
   <!-- Right: battery + shot count + fullscreen + settings -->
   <div class="right">
-    <div class="meta-group">
-      {#if cameraInfo}
-        <div class="battery-wrap" title="Battery: {
-          (() => { const p = parseInt(cameraInfo.battery.level, 10); return isNaN(p) ? cameraInfo.battery.level : p + '%'; })()
-        } ({cameraInfo.battery.name})">
-          <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
-              fill="none" stroke="currentColor" stroke-width="1"/>
-            <rect x="20.5" y="3.5" width="3" height="5" rx="1" ry="1" fill="currentColor"/>
-            <rect x="2" y="2" width="{fill * 16}" height="8" rx="1" ry="1"
-              fill={bColor}/>
-          </svg>
-        </div>
-      {/if}
-      {#if shotCount > 0}
-        <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
-      {/if}
-    </div>
+    {#if cameraInfo}
+      <div class="battery-wrap" title="Battery: {
+        (() => { const p = parseInt(cameraInfo.battery.level, 10); return isNaN(p) ? cameraInfo.battery.level : p + '%'; })()
+      } ({cameraInfo.battery.name})">
+        <svg class="battery-icon" viewBox="0 0 24 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="20" height="11" rx="2" ry="2"
+            fill="none" stroke="currentColor" stroke-width="1"/>
+          <rect x="20.5" y="3.5" width="3" height="5" rx="1" ry="1" fill="currentColor"/>
+          <rect x="2" y="2" width="{fill * 16}" height="8" rx="1" ry="1"
+            fill={bColor}/>
+        </svg>
+      </div>
+    {/if}
+    {#if shotCount > 0}
+      <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
+    {/if}
     <button class="icon-btn" onclick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
       {#if isFullscreen}
         <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -281,13 +279,6 @@
     align-items: center;
     gap: 0.5rem;
     flex-shrink: 0;
-  }
-
-  /* Battery + shot count grouped tightly together */
-  .meta-group {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
   }
 
   .shot-count { color: #4b5563; font-size: 0.7rem; }
