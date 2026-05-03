@@ -158,18 +158,20 @@
     {#if cameraInfo || shotCount > 0}
       <div class="divider"></div>
     {/if}
-    <button class="icon-btn" onclick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
-      {#if isFullscreen}
-        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M5.5 1.5V5.5H1.5M10.5 1.5V5.5H14.5M5.5 14.5V10.5H1.5M10.5 14.5V10.5H14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      {:else}
-        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M1.5 5.5V1.5H5.5M14.5 5.5V1.5H10.5M1.5 10.5V14.5H5.5M14.5 10.5V14.5H10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      {/if}
-    </button>
-    <ConfigMenu onconnection={onconnection} onclear={onclear} />
+    <div class="btn-group">
+      <button class="icon-btn" onclick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
+        {#if isFullscreen}
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5.5 1.5V5.5H1.5M10.5 1.5V5.5H14.5M5.5 14.5V10.5H1.5M10.5 14.5V10.5H14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1.5 5.5V1.5H5.5M14.5 5.5V1.5H10.5M1.5 10.5V14.5H5.5M14.5 10.5V14.5H10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {/if}
+      </button>
+      <ConfigMenu onconnection={onconnection} onclear={onclear} />
+    </div>
   </div>
 </div>
 
@@ -285,6 +287,12 @@
   }
 
   .shot-count { color: #4b5563; font-size: 0.7rem; }
+
+  .btn-group {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+  }
 
   .divider {
     width: 1px;
