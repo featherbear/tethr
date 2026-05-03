@@ -57,6 +57,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: "v1"
           workspaces: src-tauri
 
       - name: Install Linux system dependencies
