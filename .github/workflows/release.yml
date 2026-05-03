@@ -83,6 +83,18 @@ jobs:
           RUNTIME_SRC=$(ls src-tauri/binaries/runtime/)
           cp "src-tauri/binaries/runtime/$RUNTIME_SRC" "build/runtime/$RUNTIME_SRC"
 
+      - name: Build SFX stub (Windows only)
+        if: matrix.bundles == 'none'
+        shell: bash
+        env:
+          SFX_VERSION: ${{ github.ref_name }}
+        run: |
+          cd sfx
+          # Use rustc to detect the native target triple for this runner
+          RUST_TARGET=$(rustc -vV | sed -n 's/^host: //p')
+          cargo build --release --target "$RUST_TARGET"
+          cp "target/$RUST_TARGET/release/sfx.exe" "../sfx-stub.exe"
+
       - name: Build
         shell: bash
         env:

@@ -65,13 +65,32 @@ if (os === 'darwin') {
   if (!existsSync(tethrExe))     throw new Error(`tethr.exe not found at ${tethrExe}`);
   if (!existsSync(resourcesDir)) throw new Error(`resources/ not found at ${resourcesDir}`);
 
-  dest = join(root, `tethr-${tag}-${label}.zip`);
+  dest = join(root, `tethr-${tag}-${label}.exe`);
 
-  // Portable zip — users extract and run tethr.exe directly.
-  // SFX stubs (7zSD.sfx) are x86-only and won't run on arm64 Windows.
-  // A zip works on all Windows versions and architectures without compatibility issues.
-  const sevenZip = 'C:\\Program Files\\7-Zip\\7z.exe';
-  execSync(`"${sevenZip}" a -mx=5 "${dest}" tethr.exe resources`, { stdio: 'inherit', cwd: releaseDir });
+  // Self-extracting archive: sfx-stub.exe + zip payload concatenated.
+  // The Rust SFX stub finds the zip by scanning for PK\x03\x04, extracts to
+  // %TEMP%\tethr-{version}, and launches tethr.exe.
+  const sfxStub    = join(root, 'sfx-stub.exe');
+  const zipPayload = join(root, 'tmp-payload.zip');
+  const sevenZip   = 'C:\\Program Files\\7-Zip\\7z.exe';
+
+  if (!existsSync(sfxStub)) throw new Error(`SFX stub not found at ${sfxStub} — was it compiled?`);
+
+  // Create zip payload with tethr.exe + resources/ at root
+  execSync(`"${sevenZip}" a -mx=5 "${zipPayload}" tethr.exe resources`, { stdio: 'inherit', cwd: releaseDir });
+
+  // Concatenate stub + zip → final SFX exe
+  execSync(
+    `powershell -Command "` +
+    `$s=[IO.File]::ReadAllBytes('${sfxStub}');` +
+    `$z=[IO.File]::ReadAllBytes('${zipPayload}');` +
+    `$o=New-Object IO.FileStream('${dest}',[IO.FileMode]::Create);` +
+    `$o.Write($s,0,$s.Length);$o.Write($z,0,$z.Length);$o.Close()"`,
+    { stdio: 'inherit' }
+  );
+
+  // Cleanup
+  try { execSync(`del /f "${zipPayload}"`, { stdio: 'pipe', shell: true }); } catch {}
 } else {
   console.error(`❌  Unsupported OS: ${os}`);
   process.exit(1);
