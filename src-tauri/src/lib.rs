@@ -62,9 +62,16 @@ pub fn run() {
                 // paths for chunk loading that fail if CWD is anything else.
                 let build_dir = resource_dir.join("build");
 
-                // std::process::Command::new() on Windows calls CreateProcess directly
-                // with the full absolute path — this works for PE binaries regardless
-                // of whether they have the .exe extension.
+                // Verify required files exist before spawning
+                if !bun_bin.exists() {
+                    eprintln!("tethr: js-runtime not found at {}", bun_bin.display());
+                    std::process::exit(1);
+                }
+                if !index_js.exists() {
+                    eprintln!("tethr: index.js not found at {}", index_js.display());
+                    std::process::exit(1);
+                }
+
                 let child = std::process::Command::new(&bun_bin)
                     .arg(&index_js)
                     .current_dir(&build_dir)
@@ -72,7 +79,10 @@ pub fn run() {
                     .env("HOST", "127.0.0.1")
                     .env("NODE_ENV", "production")
                     .spawn()
-                    .expect("failed to spawn js-runtime");
+                    .unwrap_or_else(|e| {
+                        eprintln!("tethr: failed to spawn js-runtime at {}: {}", bun_bin.display(), e);
+                        std::process::exit(1);
+                    });
 
                 // Store the child so we can kill it when Tauri exits.
                 app.manage(ServerProcess(Mutex::new(child)));
