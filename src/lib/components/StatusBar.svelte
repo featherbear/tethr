@@ -155,6 +155,9 @@
     {#if shotCount > 0}
       <span class="shot-count">{shotCount} {shotCount === 1 ? 'photo' : 'photos'}</span>
     {/if}
+    {#if cameraInfo || shotCount > 0}
+      <div class="divider"></div>
+    {/if}
     <button class="icon-btn" onclick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
       {#if isFullscreen}
         <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -282,6 +285,13 @@
   }
 
   .shot-count { color: #4b5563; font-size: 0.7rem; }
+
+  .divider {
+    width: 1px;
+    height: 14px;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
 
   .icon-btn {
     background: none;
