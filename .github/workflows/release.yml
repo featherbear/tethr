@@ -95,16 +95,24 @@ jobs:
       - name: Build
         shell: bash
         env:
-          # APPIMAGE_EXTRACT_AND_RUN: GitHub runners can't mount FUSE; tell linuxdeploy
-          #   and appimagetool to extract their AppImage and run from disk instead
-          # NO_STRIP: linuxdeploy's strip step crashes on Bun's statically-linked binary;
-          #   skip it for safety on all Linux jobs (no-op on Windows/macOS jobs)
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: 1
         run: |
           ARGS="--bundles ${{ matrix.bundles }}"
           [ -n "${{ matrix.rust-target }}" ] && ARGS="$ARGS --target ${{ matrix.rust-target }}"
-          pnpm tauri build $ARGS
+          pnpm tauri build $ARGS 2>&1 | tee /tmp/tauri-build.log | tail -50
+          echo "=== Tauri build log (resource lines) ==="
+          grep -i "resource\|copy\|bundle\|skip\|warn" /tmp/tauri-build.log || true
+
+      - name: Inspect bundle contents
+        shell: bash
+        run: |
+          echo "=== src-tauri/target/release/ top-level ==="
+          ls -la src-tauri/target/release/*.exe 2>/dev/null || ls -la src-tauri/target/release/tethr 2>/dev/null || echo "no main binary found"
+          echo "=== src-tauri/target/release/resources/ ==="
+          find src-tauri/target/release/resources/ -maxdepth 3 2>/dev/null | head -30 || echo "no resources dir"
+          echo "=== bundle dir ==="
+          find src-tauri/target/release/bundle/ -maxdepth 3 2>/dev/null | head -20 || true
 
       - name: Verify bundle size
         shell: bash
