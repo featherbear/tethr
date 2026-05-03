@@ -23,6 +23,47 @@ fn find_free_port() -> u16 {
         .port()
 }
 
+/// Check if WebView2 is installed (Windows only).
+/// Returns true if found, false if missing.
+#[cfg(target_os = "windows")]
+fn check_webview2() -> bool {
+    // WebView2 writes its version to the registry at:
+    // HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}
+    // or HKCU for per-user installs.
+    use std::process::Command;
+    let output = Command::new("reg")
+        .args(["query",
+            r"HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+            "/v", "pv"])
+        .output();
+    if output.map(|o| o.status.success()).unwrap_or(false) {
+        return true;
+    }
+    // Also check HKCU (per-user install)
+    let output = Command::new("reg")
+        .args(["query",
+            r"HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+            "/v", "pv"])
+        .output();
+    output.map(|o| o.status.success()).unwrap_or(false)
+}
+
+/// Show a native Windows message box.
+#[cfg(target_os = "windows")]
+fn show_message_box(title: &str, message: &str) {
+    use std::process::Command;
+    // Use PowerShell to show a message box — available on all Windows versions
+    let ps_cmd = format!(
+        "Add-Type -AssemblyName System.Windows.Forms; \
+         [System.Windows.Forms.MessageBox]::Show('{}', '{}', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)",
+        message.replace('\'', "''"),
+        title.replace('\'', "''")
+    );
+    let _ = Command::new("powershell")
+        .args(["-Command", &ps_cmd])
+        .output();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -31,6 +72,16 @@ pub fn run() {
             let _app = app; // in dev, Vite handles the window
             #[cfg(not(debug_assertions))]
             {
+                // Check WebView2 is installed (Windows only)
+                #[cfg(target_os = "windows")]
+                if !check_webview2() {
+                    show_message_box(
+                        "Tethr — Missing Dependency",
+                        "Microsoft WebView2 Runtime is required to run Tethr.\n\nPlease download and install it from:\nhttps://developer.microsoft.com/microsoft-edge/webview2/\n\nTethr will now exit."
+                    );
+                    std::process::exit(1);
+                }
+
                 let port = find_free_port();
                 let server_url = format!("http://127.0.0.1:{port}");
 
