@@ -141,6 +141,12 @@
 - **Fix:** Replace `const enum Foo { A = 0, B = 1 }` with `const Foo = { A: 0, B: 1 } as const; type FooValue = typeof Foo[keyof typeof Foo];`
 - **Prevention:** Avoid all TypeScript-only features in `.svelte` files (`const enum`, `namespace`, decorators). Move them to `.ts` files if needed, or use `as const` objects.
 
+### ReadableStream throws TypeError: 'terminated' on AbortController abort — treat as clean
+- **Symptom:** `WARN monitor › Monitoring read error — back to verify errType=TypeError err="terminated"` after config change or HMR reload
+- **Root cause:** When the outer `AbortController` fires (e.g. `startMonitor()` called again), Node cancels the fetch body, causing `reader.read()` to throw `TypeError: terminated`. This is intentional cleanup, not a real error.
+- **Fix:** In the `catch` block of any `reader.read()` loop, check `signal.aborted` first — if true, return `{ result: 'clean' }` instead of `{ result: 'error' }`.
+- **Prevention:** Always check `signal.aborted` in stream read catch blocks before classifying as an error. Abort-triggered throws are not network failures.
+
 ### Monitor state machine: verify → connect → live phases must be explicit
 - **Symptom:** App cycles live→connecting→live repeatedly; or stays stuck in connecting; or never reaches live consistently
 - **Root cause:** A flat `while(true)` reconnect loop that calls `setStatus('connecting')` at the top of every iteration blurs the difference between "camera unreachable" and "stream dropped". One status transition triggers another before any I/O completes.
