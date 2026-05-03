@@ -1,0 +1,41 @@
+/**
+ * forms.css — shared form field styles
+ *
+ * Import in any component with input/select fields:
+ *   <style>
+ *     @import '$lib/styles/forms.css';
+ *   </style>
+ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field label {
+  font-size: 0.7rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field input,
+.field select {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  padding: 0.45rem 0.65rem;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+
+.field input:disabled,
+.field select:disabled { opacity: 0.5; cursor: not-allowed; }

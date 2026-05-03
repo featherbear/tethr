@@ -4,6 +4,7 @@
   import type { ShootingSettings } from '$lib/stores/photos.svelte';
   import { formatExposure } from '$lib/formatters';
   import ConfigMenu from './ConfigMenu.svelte';
+  import { useFullscreen } from '$lib/utils/fullscreen.svelte';
 
   interface Props {
     status: ConnectionStatus;
@@ -85,23 +86,10 @@
   const fill  = $derived(cameraInfo ? batteryFill(cameraInfo.battery.level) : 0);
   const bColor = $derived(cameraInfo ? batteryColor(cameraInfo.battery.level) : '#6b7280');
 
-  // Fullscreen
-  let isFullscreen = $state(false);
-
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  }
-
-  function handleFullscreenChange() {
-    isFullscreen = !!document.fullscreenElement;
-  }
+  const fs = useFullscreen();
 </script>
 
-<svelte:window onfullscreenchange={handleFullscreenChange} />
+<svelte:window onfullscreenchange={fs.handleChange} />
 
 <div class="status-bar">
   <!-- Left: status dot + camera details -->
@@ -159,8 +147,8 @@
       <div class="divider"></div>
     {/if}
     <div class="btn-group">
-      <button class="icon-btn" onclick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
-        {#if isFullscreen}
+      <button class="icon-btn" onclick={fs.toggle} title={fs.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
+        {#if fs.isFullscreen}
           <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M5.5 1.5V5.5H1.5M10.5 1.5V5.5H14.5M5.5 14.5V10.5H1.5M10.5 14.5V10.5H14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>

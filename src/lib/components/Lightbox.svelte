@@ -3,6 +3,7 @@
   import { untrack } from 'svelte';
   import type { Photo, ShootingSettings } from '$lib/stores/photos.svelte';
   import { formatExposure } from '$lib/formatters';
+  import { useFullscreen } from '$lib/utils/fullscreen.svelte';
 
   interface Props {
     photos: Photo[];
@@ -15,7 +16,7 @@
   const { photos, initialIndex, liveSettings = null, onclose, onfetchfull }: Props = $props();
 
   let latestMode = $state(false);
-  let isFullscreen = $state(false);
+  const fs = useFullscreen();
 
   // Display controls
   let showControls = $state(false);
@@ -165,30 +166,18 @@
     navigate(Math.max(index - 1, 0));
   }
 
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => { isFullscreen = true; }).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => { isFullscreen = false; }).catch(() => {});
-    }
-  }
-
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape')       { onclose(); return; }
     if (e.key === 'ArrowLeft')    { prev(); return; }
     if (e.key === 'ArrowRight')   { next(); return; }
-    if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
+    if (e.key === 'f' || e.key === 'F') { fs.toggle(); return; }
     if (e.key === 'l' || e.key === 'L') { latestMode = !latestMode; return; }
     if (e.key === 'c' || e.key === 'C') { showControls = !showControls; return; }
   }
 
-  // Listen for external fullscreen change (e.g. user presses Esc in native fullscreen)
-  function handleFullscreenChange() {
-    isFullscreen = !!document.fullscreenElement;
-  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} onfullscreenchange={handleFullscreenChange} />
+<svelte:window onkeydown={handleKeydown} onfullscreenchange={fs.handleChange} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -198,9 +187,9 @@
   <button class="btn-icon btn-close" onclick={onclose} aria-label="Close lightbox">✕</button>
 
   <!-- Fullscreen -->
-  <button class="btn-icon btn-fullscreen" onclick={toggleFullscreen} title="Fullscreen (F)" aria-label="Toggle fullscreen">
-    {isFullscreen ? '⛶' : '⛶'}
-    <span class="sr-only">{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
+  <button class="btn-icon btn-fullscreen" onclick={fs.toggle} title="Fullscreen (F)" aria-label="Toggle fullscreen">
+    ⛶
+    <span class="sr-only">{fs.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span>
   </button>
 
   <!-- Display Controls button -->
@@ -222,8 +211,9 @@
           class="toggle"
           class:on={curvedCorners}
           onclick={() => curvedCorners = !curvedCorners}
-          aria-pressed={curvedCorners}
           role="switch"
+          aria-checked={curvedCorners}
+          aria-label="Curved corners"
         ><span class="toggle-knob"></span></button>
       </label>
       <label class="control-row">
@@ -232,8 +222,9 @@
           class="toggle"
           class:on={ambientEnabled}
           onclick={() => ambientEnabled = !ambientEnabled}
-          aria-pressed={ambientEnabled}
           role="switch"
+          aria-checked={ambientEnabled}
+          aria-label="Ambient backlight"
         ><span class="toggle-knob"></span></button>
       </label>
       <label class="control-row" class:disabled={!ambientEnabled}>
@@ -242,9 +233,10 @@
           class="toggle"
           class:on={shadowEnabled && ambientEnabled}
           onclick={() => { if (ambientEnabled) shadowEnabled = !shadowEnabled; }}
-          aria-pressed={shadowEnabled && ambientEnabled}
-          aria-disabled={!ambientEnabled}
           role="switch"
+          aria-checked={shadowEnabled && ambientEnabled}
+          aria-disabled={!ambientEnabled}
+          aria-label="Image shadow"
         ><span class="toggle-knob"></span></button>
       </label>
     </div>
