@@ -104,6 +104,11 @@ jobs:
             cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
           fi
 
+      - name: Inspect binary size
+        if: matrix.label == 'macos-universal'
+        shell: bash
+        run: ls -lASh src-tauri/target/universal-apple-darwin/release/bundle/macos/tethr.app/Contents/MacOS/
+
       - name: Package artifact
         run: node scripts/package-artifact.mjs ${{ matrix.label }} ${{ github.ref_name }} ${{ matrix.rust-target }}
 
