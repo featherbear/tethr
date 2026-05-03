@@ -397,7 +397,7 @@
 
   .btn-close      { right: 1rem; z-index: 10; }
   .btn-fullscreen { right: 3.5rem; z-index: 10; }
-  .btn-controls   { right: 6rem; z-index: 10; }
+  .btn-controls   { right: 6rem; z-index: 10; font-size: 1.25rem; }
   .btn-controls.active { background: rgba(var(--accent-rgb),0.15); border-color: rgba(var(--accent-rgb),0.5); color: var(--accent-light); }
 
   .sr-only {
