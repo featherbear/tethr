@@ -58,8 +58,8 @@ if (os === 'darwin') {
   const releaseDir   = join(root, 'src-tauri', 'target', targetSuffix + 'release');
   const tethrExe     = join(releaseDir, 'tethr.exe');
   const resourcesDir = join(releaseDir, 'resources');
-  // Verify runtime binary exists (js-runtime.exe)
-  const runtimeExe = join(resourcesDir, 'runtime', 'js-runtime.exe');
+  // Verify runtime binary exists (js-runtime.exe — staged in build/runtime/)
+  const runtimeExe = join(resourcesDir, 'build', 'runtime', 'js-runtime.exe');
   if (!existsSync(runtimeExe)) throw new Error(`js-runtime.exe not found at ${runtimeExe}`);
 
   if (!existsSync(tethrExe))     throw new Error(`tethr.exe not found at ${tethrExe}`);
