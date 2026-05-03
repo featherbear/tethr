@@ -20,8 +20,19 @@
   let lightboxIndex = $state<number | null>(null);
   let liveSettings = $state<ShootingSettings | null>(null);
 
-  // Load persisted photos from IndexedDB on first browser render
-  if (browser) photosStore.init();
+  // Load persisted photos from IndexedDB, then enqueue thumbnail + display fetches
+  if (browser) {
+    photosStore.init().then(() => {
+      for (const photo of photosStore.photos) {
+        if (!photo.thumbnailUrl) {
+          // Pick the JPG variant for thumbnail, fall back to RAW
+          const filename = photo.variants.find(v => /\.jpe?g$/i.test(v)) ?? photo.variants[0];
+          if (filename) enqueueThumbnail(photo.id, photo.dirname, filename);
+        }
+      }
+      scheduleIdlePrefetch();
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Single global serial camera fetch queue — CCAPI is single-threaded,
