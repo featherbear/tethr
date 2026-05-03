@@ -62,6 +62,7 @@ pub fn run() {
                     .arg(&index_js)
                     .env("PORT", port.to_string())
                     .env("HOST", "127.0.0.1")
+                    .env("NODE_ENV", "production")
                     .spawn()
                     .expect("failed to spawn js-runtime");
 
