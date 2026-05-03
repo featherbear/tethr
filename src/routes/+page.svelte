@@ -247,32 +247,57 @@
     return fullPath.replace(/^\/?ccapi\/ver\d+\/contents\//, '');
   }
 
+  // ---------------------------------------------------------------------------
+  // Image Cache API — keyed by photo UUID (not URL) so filename reuse is safe.
+  // Cache entries use synthetic URLs: tethr-cache://thumb/{uuid} etc.
+  // ---------------------------------------------------------------------------
+  const IMAGE_CACHE = 'tethr-images-v1';
+
+  async function getCachedBlob(cacheKey: string): Promise<Blob | null> {
+    try {
+      const cache = await caches.open(IMAGE_CACHE);
+      const res = await cache.match(cacheKey);
+      return res ? res.blob() : null;
+    } catch { return null; }
+  }
+
+  async function setCachedBlob(cacheKey: string, blob: Blob): Promise<void> {
+    try {
+      const cache = await caches.open(IMAGE_CACHE);
+      await cache.put(cacheKey, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }));
+    } catch { /* non-fatal */ }
+  }
+
   async function fetchThumbnail(id: string, dirname: string, filename: string, attempt = 0) {
     const camPath = toApiPath(`${dirname}/${filename}`);
+    const cacheKey = `tethr-cache://thumb/${id}`;
     log.debug({ id, camPath, attempt }, 'Fetching thumbnail');
     try {
-      const res = await fetch(`/api/thumbnail/${camPath}`);
-      if (!res.ok) {
-        log.warn({ id, camPath, status: res.status, attempt }, 'Thumbnail fetch failed');
-        // Retry on transient camera errors (503, 502) with backoff
-        if (attempt < THUMB_MAX_RETRIES && (res.status === 503 || res.status === 502)) {
-          const delay = THUMB_RETRY_DELAY_MS * (attempt + 1);
-          await new Promise(r => setTimeout(r, delay));
-          // Re-enqueue at same priority so it goes through the serial queue
-          enqueueJob({ type: 'thumb', id, dirname, filename, priority: P.Thumbnail });
+      // Check cache first (keyed by UUID — safe even if filenames repeat across sessions)
+      let blob = await getCachedBlob(cacheKey);
+      if (!blob) {
+        const res = await fetch(`/api/thumbnail/${camPath}`);
+        if (!res.ok) {
+          log.warn({ id, camPath, status: res.status, attempt }, 'Thumbnail fetch failed');
+          if (attempt < THUMB_MAX_RETRIES && (res.status === 503 || res.status === 502)) {
+            const delay = THUMB_RETRY_DELAY_MS * (attempt + 1);
+            await new Promise(r => setTimeout(r, delay));
+            enqueueJob({ type: 'thumb', id, dirname, filename, priority: P.Thumbnail });
+          }
+          return;
         }
-        return;
+        blob = await res.blob();
+        setCachedBlob(cacheKey, blob); // fire-and-forget
+      } else {
+        log.debug({ id }, 'Thumbnail from cache');
       }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       photosStore.setThumbnail(id, url);
       log.info({ id, camPath }, 'Thumbnail loaded');
-      // If lightbox is open and showing this photo, fetch display at urgent priority
       const currentPhoto = lightboxIndex !== null ? photosStore.photos[lightboxIndex] : null;
       if (currentPhoto?.id === id) {
         enqueueDisplay(id, P.DisplayUrgent);
       } else {
-        // Otherwise schedule idle prefetch
         scheduleIdlePrefetch();
       }
     } catch (e) {
@@ -295,8 +320,18 @@
     if (!displayVariant) return;
 
     const camPath = toApiPath(`${photo.dirname}/${displayVariant}`);
+    const cacheKey = `tethr-cache://display/${id}`;
     log.debug({ id, camPath, attempt }, 'Fetching display image');
     try {
+      // Check cache first
+      const cached = await getCachedBlob(cacheKey);
+      if (cached) {
+        log.debug({ id }, 'Display from cache');
+        const url = URL.createObjectURL(cached);
+        photosStore.setDisplay(id, url);
+        return;
+      }
+
       photosStore.setDisplayProgress(id, 0);
       const res = await fetch(`/api/fullres/${camPath}`);
       if (!res.ok || !res.body) {
@@ -326,6 +361,7 @@
       }
 
       const blob = new Blob(chunks, { type: 'image/jpeg' });
+      setCachedBlob(cacheKey, blob); // fire-and-forget
       const url = URL.createObjectURL(blob);
       photosStore.setDisplay(id, url);
       log.info({ id, camPath, bytes: received }, 'Display image loaded');
@@ -403,6 +439,8 @@
       showClear = false;
       lightboxIndex = null;
       await photosStore.clearAll();
+      // Also wipe the image cache so stale blobs don't persist
+      caches.delete(IMAGE_CACHE).catch(() => {});
     }}
   />
 {/if}
