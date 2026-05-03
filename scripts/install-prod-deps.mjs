@@ -80,6 +80,12 @@ function scanDir(dir) {
 const detected = [...scanDir(buildServer)].sort();
 console.log('[install-prod-deps] Detected server deps:', detected);
 
+// Ensure critical runtime deps are always included even if Rollup bundled them
+// on the current platform (making them invisible to the ESM import scanner).
+const ALWAYS_INCLUDE = ['pino', 'undici'];
+const allDepsToInstall = [...new Set([...detected, ...ALWAYS_INCLUDE])].sort();
+console.log('[install-prod-deps] Final deps (detected + required):', allDepsToInstall);
+
 // ---------------------------------------------------------------------------
 // Resolve versions from root package.json
 // ---------------------------------------------------------------------------
@@ -89,7 +95,7 @@ const allDeps = { ...rootPkg.dependencies, ...rootPkg.devDependencies };
 
 const versions = {};
 const missing = [];
-for (const dep of detected) {
+for (const dep of allDepsToInstall) {
   if (allDeps[dep]) {
     versions[dep] = allDeps[dep];
   } else {
