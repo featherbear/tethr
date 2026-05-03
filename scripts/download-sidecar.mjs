@@ -212,6 +212,17 @@ async function main() {
   copyFileSync(finalBin, outPath);
   if (!isWin) chmodSync(outPath, 0o755);
 
+  // Ad-hoc code sign on macOS — suppresses the firewall "new app" dialog
+  // without requiring an Apple Developer certificate.
+  if (nodePlatform === 'darwin') {
+    try {
+      execSync(`codesign --force --deep --sign - "${outPath}"`, { stdio: 'pipe' });
+      console.log('[download-sidecar] ad-hoc signed js-runtime');
+    } catch (e) {
+      console.warn('[download-sidecar] codesign failed (non-fatal):', e.message);
+    }
+  }
+
   const sizeMB = (statSync(outPath).size / 1024 / 1024).toFixed(0);
   console.log(`✅ js-runtime ready: ${outPath} (${sizeMB}MB)`);
 
