@@ -16,11 +16,14 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const binDir = join(root, 'src-tauri', 'binaries');
 
 const isWin = process.platform === 'win32';
-const suffix = isWin ? '.exe' : '';
-const genericName = `js-runtime${suffix}`;
+// Always use the non-.exe name for the generic binary — tauri.conf.json resources
+// map uses 'binaries/js-runtime' on all platforms. On Windows the .exe extension
+// is not required for execution when launched via absolute path from Rust.
+const genericName = 'js-runtime';
 const genericPath = join(binDir, genericName);
 
 // Find the platform-specific binary (any file matching js-runtime-*)
+// On Windows it ends with .exe, on other platforms it doesn't
 const files = readdirSync(binDir).filter(f =>
   f.startsWith('js-runtime-') && (isWin ? f.endsWith('.exe') : !f.endsWith('.exe'))
 );

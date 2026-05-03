@@ -42,8 +42,9 @@ pub fn run() {
 
                 // js-runtime is bundled via the Tauri resources map into Contents/Resources/
                 // (not Contents/MacOS/ — that's reserved for the main executable)
-                let bun_name = if cfg!(windows) { "js-runtime.exe" } else { "js-runtime" };
-                let bun_bin = resource_dir.join(bun_name);
+                // js-runtime is bundled without .exe extension on all platforms
+                // (Tauri resources map uses a single 'js-runtime' entry)
+                let bun_bin = resource_dir.join("js-runtime");
                 let index_js = resource_dir.join("build").join("index.js");
 
                 // Ensure the bun binary is executable (resources may lose +x on some platforms)
