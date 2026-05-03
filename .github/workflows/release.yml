@@ -108,18 +108,28 @@ jobs:
           echo "=== Tauri build log (resource lines) ==="
           grep -i "resource\|copy\|bundle\|skip\|warn" /tmp/tauri-build.log || true
 
-          # For --no-bundle builds, Tauri doesn't copy resources — do it manually
+          # Copy the js-runtime binary into resources/ — not handled by Tauri's resources
+          # map (removed to avoid cross-platform filename validation issues).
+          # --no-bundle: Tauri doesn't copy resources at all, so we copy everything.
+          # bundled platforms: Tauri copies build/ and node_modules/ but not runtime/.
+          TARGET_DIR="src-tauri/target/${{ matrix.rust-target && format('{0}/', matrix.rust-target) || '' }}release"
+          RUNTIME_SRC="src-tauri/binaries/runtime"
+          RUNTIME_DEST="$TARGET_DIR/resources/runtime"
+          mkdir -p "$RUNTIME_DEST"
+
           if [ "${{ matrix.bundles }}" = "none" ]; then
-            TARGET_DIR="src-tauri/target/release"
-            echo "Copying resources manually for --no-bundle build..."
+            # Windows --no-bundle: copy everything manually
             mkdir -p "$TARGET_DIR/resources/build"
-            mkdir -p "$TARGET_DIR/resources/runtime"
             cp -r build/. "$TARGET_DIR/resources/build/"
             cp -r server_modules/node_modules "$TARGET_DIR/resources/build/node_modules"
-            cp src-tauri/binaries/runtime/js-runtime.exe "$TARGET_DIR/resources/runtime/js-runtime.exe"
-            echo "=== resources/ after manual copy ==="
-            du -sh "$TARGET_DIR/resources/"*
+            cp "$RUNTIME_SRC/js-runtime.exe" "$RUNTIME_DEST/js-runtime.exe"
+          else
+            # macOS/Linux: Tauri already copied build/ and node_modules/; just add runtime
+            RUNTIME_BIN=$(ls "$RUNTIME_SRC/" | head -1)
+            cp "$RUNTIME_SRC/$RUNTIME_BIN" "$RUNTIME_DEST/$RUNTIME_BIN"
           fi
+          echo "=== resources/runtime/ ==="
+          ls -lh "$RUNTIME_DEST/"
 
       - name: Inspect bundle contents
         shell: bash
